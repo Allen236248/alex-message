@@ -1,8 +1,9 @@
 package com.allen.message.rmq.producer;
 
+import com.alex.message.exception.MessageException;
 import com.allen.message.producer.AbstractMessageProducer;
-import com.allen.message.rmq.MessageInfo;
 import com.allen.message.rmq.MessageInfoBuilder;
+import com.sun.nio.sctp.MessageInfo;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

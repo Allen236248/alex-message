@@ -1,13 +1,11 @@
 package com.alex.message.rmq.consumer.listener.registry;
 
-import com.alex.message.MessageListenerContainerConfig;
 import com.alex.message.consumer.handler.MessageHandler;
 import com.alex.message.consumer.registry.AbstractMessageListenerRegistry;
 import com.alex.message.rmq.Broker;
+import com.alex.message.rmq.connection.RabbitRetryConfig;
 import com.alex.message.rmq.consumer.RabbitMessageListenerConfig;
 import com.alex.message.rmq.consumer.RabbitMessageListenerContainerConfig;
-import com.alex.message.rmq.consumer.handler.AbstractCodecMessageHandler;
-import com.alex.message.rmq.consumer.handler.MessageHandleWrapper;
 import com.alex.message.rmq.converter.RabbitMessageConverter;
 import com.allen.message.utils.SpringContextHolder;
 import org.aopalliance.aop.Advice;
@@ -23,13 +21,11 @@ import org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer;
 import org.springframework.amqp.rabbit.listener.adapter.MessageListenerAdapter;
 import org.springframework.amqp.rabbit.listener.exception.ListenerExecutionFailedException;
 import org.springframework.amqp.rabbit.retry.MessageRecoverer;
-import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.retry.interceptor.StatefulRetryOperationsInterceptor;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -48,12 +44,11 @@ public abstract class AbstractRabbitMessageListenerRegistry extends AbstractMess
         //empty implementation
     }
 
-    public void register(Object messageHandler, RabbitMessageListenerContainerConfig config) {
-
+    protected void register(Object messageListener, RabbitMessageListenerContainerConfig config) {
         String destName = config.getDestName();
         // 初始化默认的broker监听器
         String defaultBrokerName = getBrokerName(destName, Broker.DEFAULT_BROKER_NAME);
-        initRabbitConfig(config, messageHandler, defaultBrokerName, destName);
+        initRabbitConfig(config, messageListener, defaultBrokerName, destName);
         registerListenerContainer(defaultBrokerName);
 
         // 额外的broker监听器
@@ -62,7 +57,7 @@ public abstract class AbstractRabbitMessageListenerRegistry extends AbstractMess
             for (Broker broker : brokers) {
                 String brokerName = getBrokerName(config.getDestName(), broker.getBrokerName());
                 String destNameOther = StringUtils.isNotBlank(broker.getDestName()) ? broker.getDestName() : config.getDestName();
-                initRabbitConfig(config, messageHandler, brokerName, destNameOther);
+                initRabbitConfig(config, messageListener, brokerName, destNameOther);
                 registerListenerContainer(brokerName);
             }
         }
@@ -155,7 +150,7 @@ public abstract class AbstractRabbitMessageListenerRegistry extends AbstractMess
      * @date
      * @throws
      */
-    public void initRabbitConfig(RabbitMessageListenerContainerConfig config, Object handler, String brokerName, String destName) {
+    public void initRabbitConfig(RabbitMessageListenerContainerConfig config, Object messageListener, String brokerName, String destName) {
         rabbitMessageListenerConfig = new RabbitMessageListenerConfig();
         String simpleQueueName;
 
@@ -180,10 +175,9 @@ public abstract class AbstractRabbitMessageListenerRegistry extends AbstractMess
             } else {
                 simpleQueueName = rabbitConnectionManager.getQueueName(destName, brokerName);
             }
-
         }
         rabbitMessageListenerConfig.setSimpleQueueName(simpleQueueName);
-        rabbitMessageListenerConfig.setHendleMessageObject(handler);
+        rabbitMessageListenerConfig.setHandleMessageObject(messageListener);
         rabbitMessageListenerConfig.setConcurrentConsumers(config.concurrentConsumers);
         rabbitMessageListenerConfig.setMessageRetryCount(config.getMessageRetryCount());
     }
@@ -234,8 +228,8 @@ public abstract class AbstractRabbitMessageListenerRegistry extends AbstractMess
                     }
                 })
                 .maxAttempts(messageRetryCount)
-                .backOffOptions(MessageRetryConfig.initialRedeliveryDelay, MessageRetryConfig.backOffMultiplier,
-                        MessageRetryConfig.maximumRedeliveryDelay).build();
+                .backOffOptions(RabbitRetryConfig.initialRedeliveryDelay, RabbitRetryConfig.backOffMultiplier,
+                        RabbitRetryConfig.maximumRedeliveryDelay).build();
 
     }
 

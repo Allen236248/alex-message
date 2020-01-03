@@ -1,10 +1,15 @@
-package com.allen.message.rmq.service;
+package com.alex.message.rmq.connection;
 
 import com.alex.message.exception.MessageException;
+import com.alex.message.rmq.Broker;
+import com.alex.message.rmq.converter.RabbitMessageConverter;
+import com.alex.message.utils.PropertiesUtils;
 import com.allen.message.retry.MessageRetryConfig;
 import com.allen.message.rmq.RabbitConfig;
 import com.allen.message.utils.PropertiesUtils;
 import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
@@ -20,19 +25,23 @@ import java.util.*;
 @Component
 public class RabbitConnectionManager implements PriorityOrdered {
 
-    @Autowired
-    private RabbitConfig rabbitConfig;
+    private final Logger LOGGER = LoggerFactory.getLogger(RabbitConnectionManager.class);
 
     @Autowired
-    private PropertiesUtils properties;
+    private RabbitConnectionConfig rabbitConnectionConfig;
 
-    private Map<String, ? super AbstractExchange> exchanges = new HashMap<String, AbstractExchange>();
+    @Autowired
+    private PropertiesUtils propertiesUtils;
+
+    private Map<String, ? super AbstractExchange> exchanges = new HashMap<>();
 
     private Map<String, Queue> queues = new HashMap<String, Queue>();
 
-    private Set<String> binded = new HashSet<String>();
+    private Set<String> binds = new HashSet<String>();
 
     private Map<String, CachingConnectionFactory> connectionFactoryCache = new HashMap<String, CachingConnectionFactory>();
+
+    private Map<String, RabbitAdmin> rabbitAdminHolder = new HashMap<String, RabbitAdmin>();
 
     public static final String DEAD_QUEUE_PREFIX = "dlq.";
 
@@ -41,37 +50,79 @@ public class RabbitConnectionManager implements PriorityOrdered {
      */
     @PostConstruct
     public void initConnectionFactory() {
-        CachingConnectionFactory connectionFactory = new CachingConnectionFactory();
-        if (!rabbitConfig.getServerHost().contains("rabbitmq.conn.host")) {
-            connectionFactory.setHost(rabbitConfig.getServerHost());
-            connectionFactory.setChannelCacheSize(rabbitConfig.getEventMsgProcessNum());
-            connectionFactory.setPort(Integer.valueOf(rabbitConfig.getPort()));
-            connectionFactory.setUsername(rabbitConfig.getUsername());
-            connectionFactory.setPassword(rabbitConfig.getPassword());
-            if (!StringUtils.isEmpty(rabbitConfig.getVirtualHost())) {
-                connectionFactory.setVirtualHost(rabbitConfig.getVirtualHost());
-            }
-            // 同时初始化灰度连接监听
-            initConnectionFactoryGray(rabbitConfig, BrokerMode.DEFAULT_BROKER);
-        } else {
-            throw new MessageException("rabbitMq connectionFactory configuration value of broker cannot be obtained");
+        String host = rabbitConnectionConfig.getHost();
+        String port = rabbitConnectionConfig.getPort();
+        String username = rabbitConnectionConfig.getUsername();
+        String password = rabbitConnectionConfig.getPassword();
+        if (StringUtils.isBlank(host) || StringUtils.isBlank(port) || StringUtils.isBlank(username) || StringUtils.isBlank(password)) {
+            LOGGER.warn("初始化连接工厂配置host/port/username/password不能为空");
+            return;
         }
-        this.connectionFactoryCache.put(BrokerMode.DEFAULT_BROKER, connectionFactory);
+
+        CachingConnectionFactory connectionFactory = new CachingConnectionFactory();
+        connectionFactory.setHost(host);
+        connectionFactory.setPort(Integer.valueOf(port));
+        connectionFactory.setUsername(username);
+        connectionFactory.setPassword(password);
+        int channelCacheSize = rabbitConnectionConfig.getChannelCacheSize();
+        connectionFactory.setChannelCacheSize(channelCacheSize);
+        String virtualHost = rabbitConnectionConfig.getVirtualHost();
+        if (StringUtils.isNotBlank(virtualHost)) {
+            connectionFactory.setVirtualHost(virtualHost);
+        }
+        this.connectionFactoryCache.put(Broker.DEFAULT_BROKER_NAME, connectionFactory);
     }
 
-    /**
-     * @param topicName
-     * @param brokerName
-     * @return
-     * @date 2017年7月11日
-     * @author zjq
-     */
-    public RabbitTemplate getTemplate(String topicName, String brokerName) {
-        this.declareBinding(topicName, brokerName);
+    public CachingConnectionFactory getConnectionFactory(String brokerName) {
+        if (this.connectionFactoryCache.containsKey(brokerName)) {
+            return this.connectionFactoryCache.get(brokerName);
+        }
+
+        // 获取当前需要支持的所有broker
+        String host = propertiesUtils.getPropertiesValue(brokerName + "." + RabbitConnectionConfig.HOST);
+        String port = propertiesUtils.getPropertiesValue(brokerName + "." + RabbitConnectionConfig.PORT);
+        String username = propertiesUtils.getPropertiesValue(brokerName + "." + RabbitConnectionConfig.USERNAME);
+        String password = propertiesUtils.getPropertiesValue(brokerName + "." + RabbitConnectionConfig.PASSWORD);
+        String virtualHost = propertiesUtils.getPropertiesValue(brokerName + "." + RabbitConnectionConfig.VIRTUAL_HOST);
+        if (StringUtils.isBlank(host) || StringUtils.isBlank(username) || StringUtils.isBlank(password) || StringUtils.isBlank(port)) {
+            throw new MessageException("未找到Broker " + brokerName + "的连接配置");
+        }
+
+        CachingConnectionFactory connectionFactory = new CachingConnectionFactory();
+        connectionFactory.setHost(host);
+        connectionFactory.setPort(Integer.valueOf(port));
+        connectionFactory.setUsername(username);
+        connectionFactory.setPassword(password);
+        if (StringUtils.isNotBlank(virtualHost)) {
+            connectionFactory.setVirtualHost(virtualHost);
+        }
+        this.connectionFactoryCache.put(brokerName, connectionFactory);
+        return connectionFactory;
+    }
+
+    public RabbitAdmin getRabbitAdmin(String brokerName) {
+        if (this.rabbitAdminHolder.containsKey(brokerName)) {
+            return this.rabbitAdminHolder.get(brokerName);
+        }
+        RabbitAdmin rabbitAdmin = new RabbitAdmin(this.getConnectionFactory(brokerName));
+
+        RabbitTemplate rabbitTemplate = rabbitAdmin.getRabbitTemplate();
+        rabbitTemplate.setMessageConverter(new RabbitMessageConverter());
+        rabbitTemplate.setRetryTemplate(RabbitRetryConfig.getRetryTemplate());
+
+        rabbitAdminHolder.put(brokerName, rabbitAdmin);
+        return rabbitAdmin;
+    }
+
+    public RabbitTemplate getTemplate(String brokerName) {
         RabbitTemplate amqpTemplate = this.getRabbitAdmin(brokerName).getRabbitTemplate();
-        amqpTemplate.setRetryTemplate(MessageRetryConfig.getSendRetryTemplate());
+        return amqpTemplate;
+    }
+
+    public RabbitTemplate getTemplate(String topicName, String brokerName) {
+        declareBinding(topicName, brokerName);
+        RabbitTemplate amqpTemplate = this.getRabbitAdmin(brokerName).getRabbitTemplate();
         amqpTemplate.setExchange(topicName);
-        amqpTemplate.setMessageConverter(new RabbitMessageConverter());
         return amqpTemplate;
     }
 
@@ -85,68 +136,10 @@ public class RabbitConnectionManager implements PriorityOrdered {
     public RabbitTemplate getPersistentPublishTemplate(String topicName, String brokerName) {
         this.declareBindingPersistentPublish(topicName, brokerName);
         RabbitTemplate amqpTemplate = this.getRabbitAdmin(brokerName).getRabbitTemplate();
-        amqpTemplate.setRetryTemplate(MessageRetryConfig.getSendRetryTemplate());
         amqpTemplate.setExchange(topicName);
-        amqpTemplate.setMessageConverter(new RabbitMessageConverter());
         return amqpTemplate;
     }
 
-
-    public RabbitTemplate getTemplate(String brokerName) {
-        RabbitTemplate amqpTemplate = this.getRabbitAdmin(brokerName).getRabbitTemplate();
-        amqpTemplate.setMessageConverter(new RabbitMessageConverter());
-        amqpTemplate.setRetryTemplate(MessageRetryConfig.getSendRetryTemplate());
-        return amqpTemplate;
-    }
-
-    public CachingConnectionFactory getCachingConnectionFactory(String brokerName) {
-        // 根据brokerName返回broker工厂
-        if (this.connectionFactoryCache.containsKey(brokerName)) {
-            return this.connectionFactoryCache.get(brokerName);
-        } else {
-            // 获取当前需要支持的所有broker
-            String host = properties.getPropertiesValue(brokerName + ".rabbitmq.conn.host");
-            String username = properties.getPropertiesValue(brokerName + ".rabbitmq.conn.username");
-            String password = properties.getPropertiesValue(brokerName + ".rabbitmq.conn.password");
-            String port = properties.getPropertiesValue(brokerName + ".rabbitmq.conn.port");
-            String virtualhost = properties.getPropertiesValue(brokerName + ".rabbitmq.conn.virtualhost");
-            if (StringUtils.isBlank(host) || StringUtils.isBlank(username) || StringUtils.isBlank(password) || StringUtils.isBlank(port)) {
-                throw new MessageException("The configuration value of broker cannot be obtained,brokerName:" + brokerName);
-            }
-            if (host.contains("rabbitmq.conn.host")) {
-                throw new MessageException("The configuration value of broker cannot be obtained,brokerName:" + brokerName);
-            }
-            CachingConnectionFactory connectionFactory = new CachingConnectionFactory();
-            connectionFactory.setHost(host);
-            connectionFactory.setPort(Integer.valueOf(port));
-            connectionFactory.setUsername(username);
-            connectionFactory.setPassword(password);
-            if (StringUtils.isBlank(virtualhost)) {
-                throw new MessageException("The configuration value of broker cannot be obtained,brokerName:" + brokerName);
-            }
-            connectionFactory.setVirtualHost(connectionFactory.getVirtualHost());
-            this.connectionFactoryCache.put(brokerName, connectionFactory);
-            // 根据环境变量初始化connectionFactoryGray
-            RabbitConfig rabbitConfig = new RabbitConfig();
-            rabbitConfig.setServerHost(host);
-            rabbitConfig.setPort(port);
-            rabbitConfig.setUsername(username);
-            rabbitConfig.setPassword(password);
-            rabbitConfig.setVirtualHost(virtualhost);
-            rabbitConfig.setEventMsgProcessNum(RabbitConfig.DEFAULT_PROCESS_THREAD_NUM);
-            initConnectionFactoryGray(rabbitConfig, brokerName);
-            return connectionFactory;
-        }
-    }
-
-    /**
-     * @return 返回同步发送工具类
-     * @date 2017年7月11日
-     * @author zjq
-     */
-    public RabbitAdmin getRabbitAdmin(String brokerName) {
-        return new RabbitAdmin(this.getCachingConnectionFactory(brokerName));
-    }
 
     /**
      * 提供广播功能，临时队列
@@ -233,11 +226,6 @@ public class RabbitConnectionManager implements PriorityOrdered {
 
     /**
      * 提供广播功能，持久化队列
-     *
-     * @param exchangeName 主题名称
-     * @return 返回队列名称
-     * @date 2017年7月7日
-     * @author raokeyong
      */
     public synchronized void declareBindingPersistentPublish(String exchangeName, String brokerName) {
         declareBinding(exchangeName, "fanout", null, true, false, null, brokerName);
@@ -263,7 +251,7 @@ public class RabbitConnectionManager implements PriorityOrdered {
      * 声明exchange和queue已经它们的绑定关系
      */
     private synchronized void declareBinding(String exchangeName, String queueName, String exchangeType, String routingKey, boolean durable,
-                                               boolean autoDelete, Map<String, Object> arguments, String brokerName, boolean isDelay) {
+                                             boolean autoDelete, Map<String, Object> arguments, String brokerName, boolean isDelay) {
         String bindRelation = brokerName + "-" + exchangeName + "-" + queueName;
         if (binded.contains(bindRelation)) {
             return;
@@ -381,17 +369,6 @@ public class RabbitConnectionManager implements PriorityOrdered {
                 }
             }
         }
-    }
-
-    public void initConnectionFactoryGray(RabbitConfig rabbitConfig, String brokerName) {
-        CachingConnectionFactory rabbitConnectionFactory = new CachingConnectionFactory();
-        rabbitConnectionFactory.setHost(rabbitConfig.getServerHost());
-        rabbitConnectionFactory.setChannelCacheSize(rabbitConfig.getEventMsgProcessNum());
-        rabbitConnectionFactory.setPort(Integer.valueOf(rabbitConfig.getPort()));
-        rabbitConnectionFactory.setUsername(rabbitConfig.getUsername());
-        rabbitConnectionFactory.setPassword(rabbitConfig.getPassword());
-        rabbitConnectionFactory.setVirtualHost(rabbitConfig.getVirtualHost() + "_" + BrokerConstant.GRAY_BETA);
-        this.connectionFactoryCache.put(brokerName + "_" + BrokerConstant.GRAY_BETA, rabbitConnectionFactory);
     }
 
     /**

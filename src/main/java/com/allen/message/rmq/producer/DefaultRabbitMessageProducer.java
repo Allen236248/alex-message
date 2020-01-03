@@ -1,9 +1,8 @@
 package com.allen.message.rmq.producer;
 
-import com.allen.message.rmq.MessageInfo;
 import com.allen.message.rmq.service.RabbitMessageService;
 import com.allen.message.utils.NamedThreadFactory;
-import com.sun.corba.se.impl.protocol.giopmsgheaders.MessageBase;
+import com.sun.nio.sctp.MessageInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
