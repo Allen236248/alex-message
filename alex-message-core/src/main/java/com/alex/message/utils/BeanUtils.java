@@ -10,9 +10,9 @@ import org.slf4j.LoggerFactory;
  * @author Ternence
  *
  */
-public class BeanUtil {
+public class BeanUtils {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(BeanUtil.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(BeanUtils.class);
 
     /**
      * 对象转换 ,将source对象中的所有属性复制到clazz类的实例中并返回

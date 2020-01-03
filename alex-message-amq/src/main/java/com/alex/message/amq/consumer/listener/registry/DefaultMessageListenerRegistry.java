@@ -4,7 +4,7 @@ import com.alex.message.MessageListenerContainerConfig;
 import com.alex.message.amq.consumer.listener.DefaultMessageListener;
 import com.alex.message.consumer.handler.MessageHandler;
 import com.alex.message.consumer.registry.AbstractMessageListenerRegistry;
-import com.alex.message.utils.BeanUtil;
+import com.alex.message.utils.BeanUtils;
 import com.alex.message.utils.SpringContextHolder;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -50,7 +50,7 @@ public class DefaultMessageListenerRegistry extends AbstractMessageListenerRegis
             destName = "Consumer." + consumerId + ".VirtualTopic." + destName;
         }
 
-        Map<String, Object> properties = BeanUtil.toBean(config, Map.class);
+        Map<String, Object> properties = BeanUtils.toBean(config, Map.class);
         if (properties == null) {
             properties = new HashMap<>();
         }

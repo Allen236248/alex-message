@@ -9,7 +9,7 @@ import java.lang.annotation.*;
  * 消息队列中间件监听注解<br />
  * 一、isPublish与isPersistentPublish具有排它特性，当两者都设置为true时，系统默认为持久化广播模式<br />
  * 二、destName具备多种含义，与isPublish、isPersistentPublish配合使用<br />
- * 三、实现本注解的同时必须继承yunnex.common.message.core.consumer.base.MessageListener接口，否则注册监听会失效<br />
+ * 三、实现本注解的同时必须继承yunnex.common.message.connection.consumer.base.MessageListener接口，否则注册监听会失效<br />
  * 四、支持多broker监听,但broker配置信息需联系平台架构部增加.当不指定ManyBrokerMessageLister中的destName时，使用上层注解的destName
  */
 @Documented

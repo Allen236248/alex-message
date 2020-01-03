@@ -4,7 +4,7 @@ import com.alex.message.consumer.handler.MessageHandler;
 import com.alex.message.exception.MessageException;
 import com.alex.message.rmq.consumer.listener.MessageListenerAttribute;
 import com.alex.message.rmq.consumer.RabbitMessageListenerContainerConfig;
-import com.alex.message.rmq.consumer.handler.AbstractCodecMessageHandler;
+import com.alex.message.rmq.consumer.listener.AbstractMessageListener;
 import com.alex.message.utils.SpringContextHolder;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -49,8 +49,8 @@ public class RabbitAnnotationMessageListenerRegistry extends AbstractRabbitMessa
     }
 
     private void checkInstance(Object bean, MessageListenerAttribute attribute) {
-        if (!(bean instanceof AbstractCodecMessageHandler)) {
-            throw new MessageException("The message listener must extends AbstractCodecMessageHandler");
+        if (!(bean instanceof AbstractMessageListener)) {
+            throw new MessageException("The message listener must extends AbstractMessageListener");
         }
 
         // 如果为持久化广播时，消费者编号不能为空

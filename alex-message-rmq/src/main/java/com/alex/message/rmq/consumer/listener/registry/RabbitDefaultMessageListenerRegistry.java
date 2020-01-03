@@ -5,7 +5,7 @@ import com.alex.message.consumer.handler.MessageHandler;
 import com.alex.message.rmq.codec.Codec;
 import com.alex.message.rmq.codec.CodecFactory;
 import com.alex.message.rmq.consumer.RabbitMessageListenerContainerConfig;
-import com.alex.message.rmq.consumer.handler.MessageHandleWrapper;
+import com.alex.message.rmq.consumer.listener.MessageListenerDelegate;
 import com.alex.message.utils.SpringContextHolder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,7 +35,7 @@ public class RabbitDefaultMessageListenerRegistry extends AbstractRabbitMessageL
         MessageListenerContainerConfig config = messageHandler.getMessageListenerContainerConfig();
         // 原始对象转换为新对象类型
         RabbitMessageListenerContainerConfig rabbitConfig = transformToRabbitMessageListenerContainerConfig(config);
-        register(new MessageHandleWrapper(messageHandler), rabbitConfig);
+        register(new MessageListenerDelegate(messageHandler), rabbitConfig);
     }
 
     private RabbitMessageListenerContainerConfig transformToRabbitMessageListenerContainerConfig(MessageListenerContainerConfig config) {

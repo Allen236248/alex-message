@@ -1,7 +1,7 @@
 package com.alex.message.amq.consumer.listener.handler;
 
 import com.alex.message.consumer.handler.MessageHandler;
-import com.alex.message.utils.ReflectUtil;
+import com.alex.message.utils.ReflectionUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,7 +15,7 @@ public abstract class AbstractMessageListenerHandler<T, M extends Message> imple
 
     @Override
     public void handleMessage(M message) throws Exception {
-        Class<T> clazz = ReflectUtil.getActualType(messageHandler);
+        Class<T> clazz = ReflectionUtils.getActualType(messageHandler);
         T msg = convert(message, clazz);
         messageHandler.handleMessage(msg);
         message.acknowledge();

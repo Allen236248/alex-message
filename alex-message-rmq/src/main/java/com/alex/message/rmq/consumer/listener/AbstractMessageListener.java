@@ -1,7 +1,5 @@
-package com.alex.message.rmq.consumer.handler;
+package com.alex.message.rmq.consumer.listener;
 
-import com.alex.message.MessageListenerContainerConfig;
-import com.alex.message.consumer.handler.MessageHandler;
 import com.alex.message.exception.MessageCodecException;
 import com.alex.message.exception.MessageException;
 import com.alex.message.rmq.MessageInfo;
@@ -14,13 +12,13 @@ import org.slf4j.LoggerFactory;
 /**
  * 消息监听抽象类
  */
-public abstract class AbstractCodecMessageHandler<T> implements MessageHandler<T> {
+public abstract class AbstractMessageListener<T> {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(AbstractCodecMessageHandler.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(AbstractMessageListener.class);
 
     private Class<T> clazz;
 
-    public AbstractCodecMessageHandler(Class<T> clazz) {
+    public AbstractMessageListener(Class<T> clazz) {
         this.clazz = clazz;
     }
 
@@ -28,9 +26,11 @@ public abstract class AbstractCodecMessageHandler<T> implements MessageHandler<T
         Long begin = System.currentTimeMillis();
         T msg = decode(messageInfo);
         LOGGER.info("The queue {} start to process message {} with header {}", messageInfo.getQueueName(), msg, messageInfo.getHeaders());
-        handleMessage(msg);
+        doHandle(msg);
         LOGGER.info("The queue {} process message finished, elapsed time is {}", messageInfo.getQueueName(), System.currentTimeMillis() - begin);
     }
+
+    public abstract void doHandle(T msg) throws MessageException;
 
     /**
      * 序列化对象
@@ -45,8 +45,4 @@ public abstract class AbstractCodecMessageHandler<T> implements MessageHandler<T
         return obj;
     }
 
-    @Override
-    public MessageListenerContainerConfig getMessageListenerContainerConfig() {
-        return null;
-    }
 }
