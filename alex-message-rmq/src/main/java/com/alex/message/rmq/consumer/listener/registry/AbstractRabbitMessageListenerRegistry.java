@@ -3,11 +3,12 @@ package com.alex.message.rmq.consumer.listener.registry;
 import com.alex.message.consumer.handler.MessageHandler;
 import com.alex.message.consumer.registry.AbstractMessageListenerRegistry;
 import com.alex.message.rmq.Broker;
+import com.alex.message.rmq.connection.RabbitConnectionManager;
 import com.alex.message.rmq.connection.RabbitRetryConfig;
 import com.alex.message.rmq.consumer.RabbitMessageListenerConfig;
 import com.alex.message.rmq.consumer.RabbitMessageListenerContainerConfig;
 import com.alex.message.rmq.converter.RabbitMessageConverter;
-import com.allen.message.utils.SpringContextHolder;
+import com.alex.message.utils.SpringContextHolder;
 import org.aopalliance.aop.Advice;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
@@ -21,6 +22,7 @@ import org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer;
 import org.springframework.amqp.rabbit.listener.adapter.MessageListenerAdapter;
 import org.springframework.amqp.rabbit.listener.exception.ListenerExecutionFailedException;
 import org.springframework.amqp.rabbit.retry.MessageRecoverer;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.retry.interceptor.StatefulRetryOperationsInterceptor;
 
 import java.util.HashMap;
@@ -35,9 +37,10 @@ public abstract class AbstractRabbitMessageListenerRegistry extends AbstractMess
 
     private final Logger LOGGER = LoggerFactory.getLogger(AbstractRabbitMessageListenerRegistry.class);
 
-    private static Map<String, SimpleMessageListenerContainer> simpleMessageListenerMap = new ConcurrentHashMap<>();
-
     private RabbitMessageListenerConfig rabbitMessageListenerConfig;
+
+    @Autowired
+    private RabbitConnectionManager rabbitConnectionManager;
 
     @Override
     protected void register(MessageHandler messageHandler) {
@@ -96,7 +99,7 @@ public abstract class AbstractRabbitMessageListenerRegistry extends AbstractMess
      */
     public MessageListenerAdapter getMessageListenerAdapter() {
         MessageListenerAdapter messageListener = new MessageListenerAdapter();
-        messageListener.setDelegate(rabbitMessageListenerConfig.getHendleMessageObject());
+        messageListener.setDelegate(rabbitMessageListenerConfig.getHandleMessageObject());
         messageListener.setMessageConverter(new RabbitMessageConverter());
         return messageListener;
     }
@@ -106,13 +109,13 @@ public abstract class AbstractRabbitMessageListenerRegistry extends AbstractMess
      */
     public SimpleMessageListenerContainer registerListenerContainer(String brokerName) {
         Map<String, Object> properties = new HashMap<String, Object>();
-        properties.put("connectionFactory", rabbitConnectionManager.getCachingConnectionFactory(brokerName));
+        properties.put("connectionFactory", rabbitConnectionManager.getConnectionFactory(brokerName));
         properties.put("acknowledgeMode", AcknowledgeMode.AUTO);
         properties.put("messageListener", getMessageListenerAdapter());
         properties.put("errorHandler", new MessageServiceErrorHandler(new DefaultFatalExceptionStrategy()));
         properties.put("queueNames", rabbitMessageListenerConfig.getSimpleQueueName());
         properties.put("concurrentConsumers", this.rabbitMessageListenerConfig.getConcurrentConsumers());
-        properties.put("adviceChain", new Advice[] {retryInterceptor(this.rabbitMessageListenerConfig.getMessageRetryCount())});
+        properties.put("adviceChain", new Advice[]{retryInterceptor(this.rabbitMessageListenerConfig.getMessageRetryCount())});
         properties.put("recoveryInterval", 2000L);
         String containerBeanName = "";
         if (Broker.DEFAULT_BROKER_NAME.equals(brokerName)) {
@@ -126,16 +129,7 @@ public abstract class AbstractRabbitMessageListenerRegistry extends AbstractMess
             registerBean(containerBeanName, SimpleMessageListenerContainer.class, properties);
         }
         SimpleMessageListenerContainer container = SpringContextHolder.getBean(containerBeanName);
-        simpleMessageListenerMap.put(containerBeanName, container);
-        // 如果状态为已启用或者为原始值，原始值是兼容老版本的做法
-        if ("enable".equals(status) || "${_appstatus}".equals(status) || StringUtils.isEmpty(status)) {
-            container.start();
-            LOGGER.info("Messagelistener container:" + containerBeanName + " for destination '" + rabbitMessageListenerConfig.getSimpleQueueName() + "' started , Use the listener: " + this.rabbitMessageListenerConfig
-                    .getHendleMessageObject().getClass().getName());
-        } else {
-            LOGGER.warn("Messagelistener container:" + containerBeanName + " for destination '" + rabbitMessageListenerConfig.getSimpleQueueName() + "' registered,but did not start,because the application is currently not enabled , Use the listener: " + this.rabbitMessageListenerConfig
-                    .getHendleMessageObject().getClass().getName());
-        }
+        container.start();
         return container;
     }
 
@@ -143,12 +137,12 @@ public abstract class AbstractRabbitMessageListenerRegistry extends AbstractMess
      * 初始化rabbitMQConfig,并建立队列和exchange绑定关系
      *
      * @param @param config
-     * @param @param hendleMessagebean
+     * @param @param handleMessagebean
      * @param @param targetClass
      * @return void 返回类型
+     * @throws
      * @author Frank 平台架构部
      * @date
-     * @throws
      */
     public void initRabbitConfig(RabbitMessageListenerContainerConfig config, Object messageListener, String brokerName, String destName) {
         rabbitMessageListenerConfig = new RabbitMessageListenerConfig();
@@ -159,9 +153,10 @@ public abstract class AbstractRabbitMessageListenerRegistry extends AbstractMess
             simpleQueueName = rabbitConnectionManager.getQueueNamePersistentPublish(destName, config.getConsumerId(), brokerName);
         } else if (config.isPublish()) {
             // 广播类型，如果存在额外的otherExchage绑定关系
-            if (StringUtils.isNotBlank(config.getOtheEexchangeName())) {
+            String otherExchangeName = config.getOtherExchangeName();
+            if (StringUtils.isNotBlank(otherExchangeName)) {
                 simpleQueueName = rabbitConnectionManager.getQueueNamePublish(destName, brokerName, config.getConsumerId(),
-                        config.getOtheEexchangeName());
+                        otherExchangeName);
             } else {
                 simpleQueueName = rabbitConnectionManager.getQueueNamePublish(destName, brokerName, config.getConsumerId());
             }
@@ -169,9 +164,9 @@ public abstract class AbstractRabbitMessageListenerRegistry extends AbstractMess
             // 是否延时队列
             if (config.isDeadLetter()) {
                 // 替换为延时队列名称，用于向rabbitmq进行注册
-                destName = destName.replace(BrokerConstant.TTL, "");
+                destName = destName.replace(Broker.TTL, "");
                 simpleQueueName = rabbitConnectionManager.getQueueName(destName, brokerName, true);
-                simpleQueueName = BrokerConstant.TTL + simpleQueueName;
+                simpleQueueName = Broker.TTL + simpleQueueName;
             } else {
                 simpleQueueName = rabbitConnectionManager.getQueueName(destName, brokerName);
             }
@@ -182,39 +177,14 @@ public abstract class AbstractRabbitMessageListenerRegistry extends AbstractMess
         rabbitMessageListenerConfig.setMessageRetryCount(config.getMessageRetryCount());
     }
 
-    public void startAllMessageListener() {
-        for (Map.Entry<String, SimpleMessageListenerContainer> entry : simpleMessageListenerMap.entrySet()) {
-            SimpleMessageListenerContainer messageListenerContainer = entry.getValue();
-            if (messageListenerContainer.isRunning()) {
-                LOGGER.info("name:{} rabbit messagelistener is started", entry.getKey());
-            } else {
-                messageListenerContainer.start();
-                LOGGER.info("start rabbit messagelistener success|name:{}", entry.getKey());
-            }
-
-        }
-    }
-
-    public void stopAllMessageListener() {
-        for (Map.Entry<String, SimpleMessageListenerContainer> entry : simpleMessageListenerMap.entrySet()) {
-            SimpleMessageListenerContainer messageListenerContainer = entry.getValue();
-            if (!messageListenerContainer.isRunning()) {
-                LOGGER.info("name:{} rabbit messagelistener is stoped", entry.getKey());
-            } else {
-                messageListenerContainer.stop();
-                LOGGER.info("stop rabbit messagelistener success|name:{}", entry.getKey());
-            }
-        }
-    }
-
     /**
      * 消息监听重试策略定义，当超过策略次数时，消息转发到消息队列
      *
      * @param @return
      * @return Advice 返回类型
+     * @throws
      * @author Frank 平台架构部
      * @date
-     * @throws
      */
     public StatefulRetryOperationsInterceptor retryInterceptor(int messageRetryCount) {
         return RetryInterceptorBuilder
@@ -228,8 +198,8 @@ public abstract class AbstractRabbitMessageListenerRegistry extends AbstractMess
                     }
                 })
                 .maxAttempts(messageRetryCount)
-                .backOffOptions(RabbitRetryConfig.initialRedeliveryDelay, RabbitRetryConfig.backOffMultiplier,
-                        RabbitRetryConfig.maximumRedeliveryDelay).build();
+                .backOffOptions(RabbitRetryConfig.REDELIVERY_DELAY, RabbitRetryConfig.BACKOFF_MULTIPLIER,
+                        RabbitRetryConfig.MAX_REDELIVERY_DELAY).build();
 
     }
 

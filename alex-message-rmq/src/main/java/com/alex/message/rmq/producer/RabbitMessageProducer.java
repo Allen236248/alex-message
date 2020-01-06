@@ -1,6 +1,6 @@
-package com.allen.message.rmq.producer;
+package com.alex.message.rmq.producer;
 
-import com.allen.message.producer.MessageProducer;
+import com.alex.message.producer.MessageProducer;
 
 /**
  * 通用消息服务接口
@@ -18,29 +18,9 @@ public interface RabbitMessageProducer extends MessageProducer {
      * <p>
      * 命名示例:queue.[domain].[module].queuename
      * </p>
-     * 
-     * @param queueName 队列名称（不可重复）
-     * @param message 消息内容
-     * @param isPersistent 消息是否持久化，持久化消息需要发送至持久化队列
-     * @return void 返回类型
-     * @author Frank 平台架构部
-     * @date
-     * @throws
-     */
-    void send(String queueName, Object message, boolean isPersistent);
-
-    /**
-     * 向队列发送消息 <br/>
-     * <p>
-     * 命名示例:queue.[domain].[module].queuename
-     * </p>
      *
      * @param queueName 队列名称（不可重复）
      * @param message 消息内容
-     * @return void 返回类型
-     * @author Frank 平台架构部
-     * @date
-     * @throws
      */
     void send(String queueName, Object message, long delayTime);
 
@@ -57,10 +37,6 @@ public interface RabbitMessageProducer extends MessageProducer {
      * @param topicName 订阅广播主题名称
      * @param message 消息内容
      * @param isPersistent 消息是否持久化，持久化消息需要发送至持久化队列
-     * @return void 返回类型
-     * @author Frank 平台架构部
-     * @date
-     * @throws
      */
     void publish(String topicName, Object message, boolean isPersistent);
 

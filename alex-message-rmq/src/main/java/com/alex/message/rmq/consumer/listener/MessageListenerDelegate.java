@@ -7,7 +7,7 @@ import com.alex.message.utils.ReflectionUtils;
 /**
  * 消息处理代码类
  */
-public class MessageListenerDelegate<T> extends AbstractMessageListener<T> {
+public final class MessageListenerDelegate<T> extends AbstractMessageListener<T> {
 
     private MessageHandler<T> messageHandler;
 

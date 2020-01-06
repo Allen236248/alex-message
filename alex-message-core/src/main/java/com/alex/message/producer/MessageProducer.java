@@ -1,7 +1,4 @@
-package com.allen.message.producer;
-
-import javax.jms.JMSException;
-import javax.jms.MessageListener;
+package com.alex.message.producer;
 
 /**
  * 消息服务接口(已废弃，请使用新版消息服务)

@@ -1,7 +1,8 @@
-package com.allen.message.rmq;
+package com.alex.message.rmq;
 
 
 import com.alex.message.exception.MessageException;
+import com.alex.message.rmq.codec.Codec;
 import org.apache.commons.lang.StringUtils;
 
 import java.util.Map;

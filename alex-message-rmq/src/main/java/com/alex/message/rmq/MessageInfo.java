@@ -65,4 +65,8 @@ public class MessageInfo {
         return (String) this.headers.get(MESSAGE_CONTENT_TYPE);
     }
 
+    @Override
+    public String toString() {
+        return "MessageInfo[headers=" + headers + "]";
+    }
 }

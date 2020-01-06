@@ -37,7 +37,7 @@ public class RabbitMessageListenerContainerConfig {
     public boolean isDeadLetter;
 
     /**exchangeName*/
-    public String otheEexchangeName;
+    public String otherExchangeName;
 
     public boolean isDeadLetter() {
         return isDeadLetter;
@@ -47,14 +47,13 @@ public class RabbitMessageListenerContainerConfig {
         this.isDeadLetter = isDeadLetter;
     }
 
-    public String getOtheEexchangeName() {
-        return otheEexchangeName;
+    public String getOtherExchangeName() {
+        return otherExchangeName;
     }
 
-    public void setOtheEexchangeName(String otheEexchangeName) {
-        this.otheEexchangeName = otheEexchangeName;
+    public void setOtherExchangeName(String otherExchangeName) {
+        this.otherExchangeName = otherExchangeName;
     }
-
 
     public int getMessageRetryCount() {
         return messageRetryCount;
@@ -87,8 +86,6 @@ public class RabbitMessageListenerContainerConfig {
     public void setConcurrentConsumers(int concurrentConsumers) {
         this.concurrentConsumers = concurrentConsumers;
     }
-
-
 
     public boolean isPublish() {
         return isPublish;
@@ -124,7 +121,7 @@ public class RabbitMessageListenerContainerConfig {
         // 设置消息重试次数
         config.setMessageRetryCount(attribute.messageRetryCount());
         // 设置其它需要绑定的exchangeName
-        config.setOtheEexchangeName(attribute.otherExchangeName());
+        config.setOtherExchangeName(attribute.otherExchangeName());
         // 死信队列前缀
         if (attribute.isDeadLetter()) {
             config.setDestName(Broker.TTL + config.getDestName());

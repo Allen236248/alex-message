@@ -4,9 +4,6 @@ import com.alex.message.exception.MessageException;
 import com.alex.message.rmq.Broker;
 import com.alex.message.rmq.converter.RabbitMessageConverter;
 import com.alex.message.utils.PropertiesUtils;
-import com.allen.message.retry.MessageRetryConfig;
-import com.allen.message.rmq.RabbitConfig;
-import com.allen.message.utils.PropertiesUtils;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -114,27 +111,29 @@ public class RabbitConnectionManager implements PriorityOrdered {
         return rabbitAdmin;
     }
 
-    public RabbitTemplate getTemplate(String brokerName) {
-        RabbitTemplate amqpTemplate = this.getRabbitAdmin(brokerName).getRabbitTemplate();
-        return amqpTemplate;
+    /**
+     * 点对点消息，持久化队列
+     */
+    public RabbitTemplate getRabbitTemplateForDirect(String queueName, String brokerName) {
+        return getRabbitTemplateForDirect(queueName, brokerName, false);
     }
 
-    public RabbitTemplate getTemplate(String topicName, String brokerName) {
-        declareBinding(topicName, brokerName);
+    /**
+     * 点对点消息，持久化队列，延时队列
+     */
+    public RabbitTemplate getRabbitTemplateForDirect(String queueName, String brokerName, boolean isDelay) {
+        declareBinding(queueName, "direct", queueName, queueName, true, false, null, brokerName, isDelay);
+
         RabbitTemplate amqpTemplate = this.getRabbitAdmin(brokerName).getRabbitTemplate();
-        amqpTemplate.setExchange(topicName);
         return amqpTemplate;
     }
 
     /**
-     * @param topicName
-     * @param brokerName
-     * @return
-     * @date 2017年7月11日
-     * @author zjq
+     * 广播消息，持久化队列
      */
-    public RabbitTemplate getPersistentPublishTemplate(String topicName, String brokerName) {
-        this.declareBindingPersistentPublish(topicName, brokerName);
+    public RabbitTemplate getRabbitTemplateForFanout(String topicName, String brokerName, boolean isPersistent) {
+        declareBindingForFanout(topicName, null, isPersistent, brokerName);
+
         RabbitTemplate amqpTemplate = this.getRabbitAdmin(brokerName).getRabbitTemplate();
         amqpTemplate.setExchange(topicName);
         return amqpTemplate;
@@ -151,114 +150,55 @@ public class RabbitConnectionManager implements PriorityOrdered {
      */
     public String getQueueNamePublish(String name, String brokerName, String consumerId, String exchangeName) {
         String queueName = "publish." + UUID.randomUUID() + "." + name.toLowerCase();
-        declareBinding(name, queueName, "fanout", null, false, true, null, brokerName, false);
+        declareBinding(name, "fanout", queueName, null, false, true, null, brokerName, false);
         if (StringUtils.isNotBlank(exchangeName)) {
-            declareBinding(exchangeName, queueName, "fanout", null, false, true, null, brokerName, false);
+            declareBinding(exchangeName,"fanout",  queueName, null, false, true, null, brokerName, false);
         }
         return queueName;
     }
 
     /**
      * 提供广播功能，临时队列
-     *
-     * @param name 主题名称
-     * @return 返回队列名称
-     * @date 2017年7月7日
-     * @author raokeyong
      */
     public String getQueueNamePublish(String name, String brokerName, String consumerId) {
         String queueName = "publish." + UUID.randomUUID() + "." + name.toLowerCase();
-        declareBinding(name, queueName, "fanout", null, false, true, null, brokerName, false);
+        declareBindingForFanout(name, null, false, brokerName);
         return queueName;
     }
 
-
     /**
      * 提供广播功能，持久化队列队列
-     *
-     * @param topicName  主题名称
-     * @param consumerId 业务主键
-     * @return 返回队列名称
-     * @date 2017年7月7日
-     * @author zjq
      */
     public String getQueueNamePersistentPublish(String topicName, String consumerId, String brokerName) {
         String queueName = null;
         if (null != consumerId) {
             queueName = "persistent.publish." + consumerId.toLowerCase() + "." + topicName.toLowerCase();
         }
-        declareBinding(topicName, queueName, "fanout", null, true, false, null, brokerName, false);
+        declareBindingForFanout(topicName, null, true, brokerName);
         return queueName;
-    }
-
-    /**
-     * 提供单发功能，持久化队列队列
-     *
-     * @param name
-     * @return 返回队列名称
-     * @date 2017年7月7日
-     * @author zjq
-     */
-    public String getQueueName(String name, String brokerName) {
-        String queueName = name.toLowerCase();
-        declareBinding(queueName, queueName, "direct", queueName, true, false, null, brokerName, false);
-        return queueName;
-    }
-
-    /**
-     * exchange和queue是否已经绑定
-     */
-    protected boolean beBinded(String exchangeName, String queueName, String brokerName) {
-        return binded.contains(brokerName + "-" + exchangeName + "-" + queueName);
     }
 
     /**
      * 提供广播功能，临时队列
-     *
-     * @param exchangeName 主题名称
-     * @return 返回队列名称
-     * @date 2017年7月7日
-     * @author raokeyong
+     * @param durable 是否为持久化队列
      */
-    public synchronized void declareBinding(String exchangeName, String brokerName) {
-        declareBinding(exchangeName, "fanout", null, false, true, null, brokerName);
+    private synchronized void declareBindingForFanout(String exchangeName, String queueName, boolean durable, String brokerName) {
+        boolean autoDelete = !durable;
+        declareBinding(exchangeName, "fanout", queueName, null, durable, autoDelete, null, brokerName, false);
     }
-
-    /**
-     * 提供广播功能，持久化队列
-     */
-    public synchronized void declareBindingPersistentPublish(String exchangeName, String brokerName) {
-        declareBinding(exchangeName, "fanout", null, true, false, null, brokerName);
-    }
-
-    /**
-     * @param exchangeName
-     * @param exchangeType
-     * @param routingKey
-     * @param durable
-     * @param autoDelete
-     * @param arguments
-     * @date 2017年7月7日
-     * @author zjq
-     */
-    protected synchronized void declareBinding(String exchangeName, String exchangeType, String routingKey, boolean durable, boolean autoDelete,
-                                               Map<String, Object> arguments, String brokerName) {
-        declareBinding(exchangeName, null, exchangeType, routingKey, durable, autoDelete, arguments, brokerName, false);
-    }
-
 
     /**
      * 声明exchange和queue已经它们的绑定关系
      */
-    private synchronized void declareBinding(String exchangeName, String queueName, String exchangeType, String routingKey, boolean durable,
+    private synchronized void declareBinding(String exchangeName, String exchangeType, String queueName, String routingKey, boolean durable,
                                              boolean autoDelete, Map<String, Object> arguments, String brokerName, boolean isDelay) {
         String bindRelation = brokerName + "-" + exchangeName + "-" + queueName;
-        if (binded.contains(bindRelation)) {
+        if (binds.contains(bindRelation)) {
             return;
         }
         String queuePrefix;
         if (isDelay) {
-            queuePrefix = BrokerConstant.TTL;
+            queuePrefix = Broker.TTL;
         } else {
             queuePrefix = DEAD_QUEUE_PREFIX;
         }
@@ -343,21 +283,21 @@ public class RabbitConnectionManager implements PriorityOrdered {
                 DirectExchange directExchange = (DirectExchange) abstractExchange;
                 binding = BindingBuilder.bind(queue).to(directExchange).with(routingKey);// 将queue绑定到exchange
                 getRabbitAdmin(brokerName).declareBinding(binding);// 声明绑定关系
-                binded.add(bindRelation);
+                binds.add(bindRelation);
             }
             if ("fanout".equals(exchangeType)) {
                 FanoutExchange fanoutExchange = (FanoutExchange) abstractExchange;
                 if (queue != null) {
                     binding = BindingBuilder.bind(queue).to(fanoutExchange);
                     getRabbitAdmin(brokerName).declareBinding(binding);// 声明绑定关系
-                    binded.add(bindRelation);
+                    binds.add(bindRelation);
                 }
             }
             if ("topic".equals(exchangeType)) {
                 TopicExchange topicExchange = (TopicExchange) abstractExchange;
                 binding = BindingBuilder.bind(queue).to(topicExchange).with(routingKey);// 将queue绑定到exchange
                 getRabbitAdmin(brokerName).declareBinding(binding);// 声明绑定关系
-                binded.add(bindRelation);
+                binds.add(bindRelation);
             }
             // 声明死信队列绑定关系
             if (queue != null && !queue.getName().startsWith(DEAD_QUEUE_PREFIX)) {
@@ -372,17 +312,10 @@ public class RabbitConnectionManager implements PriorityOrdered {
     }
 
     /**
-     * 延时队列
-     *
-     * @param name
-     * @return 返回队列名称
-     * @date 2017年7月7日
-     * @author zjq
+     * exchange和queue是否已经绑定
      */
-    public String getQueueName(String name, String brokerName, boolean deadLetter) {
-        String queueName = name.toLowerCase();
-        declareBinding(queueName, queueName, "direct", queueName, true, false, null, brokerName, deadLetter);
-        return queueName;
+    protected boolean beBinded(String exchangeName, String queueName, String brokerName) {
+        return binds.contains(brokerName + "-" + exchangeName + "-" + queueName);
     }
 
     // 其它应用优先加载
