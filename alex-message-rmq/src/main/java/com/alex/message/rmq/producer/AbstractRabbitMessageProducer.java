@@ -6,7 +6,6 @@ import com.alex.message.rmq.MessageInfo;
 import com.alex.message.rmq.MessageInfoBuilder;
 import com.alex.message.rmq.codec.Codec;
 import com.alex.message.rmq.codec.FastJsonCodec;
-import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,14 +40,6 @@ public abstract class AbstractRabbitMessageProducer implements RabbitMessageProd
 
     private void setBrokerName(MessageInfo messageInfo) {
         String brokerName = Broker.DEFAULT_BROKER_NAME;
-        // 根据消息头中的灰度标记，如包含，设置消息发送到灰度队列中
-        if (messageInfo.getHeaders().containsKey(Broker.GRAY_ENV)) {
-            Object grayEnv = messageInfo.getHeaders().get(Broker.GRAY_ENV);
-            // 消息头中含环境变更对象
-            if (grayEnv != null && StringUtils.isNotBlank(grayEnv.toString())) {
-                brokerName = brokerName + "_" + Broker.GRAY_BETA;
-            }
-        }
         LOGGER.info("message {} broker name is {}", messageInfo, brokerName);
         messageInfo.setBrokerName(brokerName);
     }

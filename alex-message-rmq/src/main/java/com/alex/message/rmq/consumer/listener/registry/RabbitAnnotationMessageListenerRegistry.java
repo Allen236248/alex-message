@@ -2,7 +2,7 @@ package com.alex.message.rmq.consumer.listener.registry;
 
 import com.alex.message.consumer.handler.MessageHandler;
 import com.alex.message.exception.MessageException;
-import com.alex.message.rmq.consumer.listener.MessageListenerAttribute;
+import com.alex.message.rmq.consumer.listener.RabbitListenerAttribute;
 import com.alex.message.rmq.consumer.RabbitMessageListenerContainerConfig;
 import com.alex.message.rmq.consumer.listener.AbstractMessageListener;
 import com.alex.message.utils.SpringContextHolder;
@@ -27,7 +27,7 @@ public class RabbitAnnotationMessageListenerRegistry extends AbstractRabbitMessa
         if (started)
             return;
 
-        String[] beanNames = SpringContextHolder.getApplicationContext().getBeanNamesForAnnotation(MessageListenerAttribute.class);
+        String[] beanNames = SpringContextHolder.getBeanNamesForAnnotation(RabbitListenerAttribute.class);
         if (null == beanNames || beanNames.length == 0)
             return;
 
@@ -36,28 +36,25 @@ public class RabbitAnnotationMessageListenerRegistry extends AbstractRabbitMessa
             Object bean = SpringContextHolder.getBean(beanNames[i]);
             // 旧业务逻辑兼容
             if (bean instanceof MessageHandler) {
-                LOGGER.warn("{}不能同时使用实现MessageHandler和添加RabbitListenerAttribute两种注册方式", bean);
+                LOGGER.warn("The implementations of MessageHandler will be registered by RabbitDefaultMessageListenerRegistry");
                 continue;
             }
-            MessageListenerAttribute attribute = bean.getClass().getAnnotation(MessageListenerAttribute.class);
-            checkInstance(bean, attribute);
+            RabbitListenerAttribute attribute = bean.getClass().getAnnotation(RabbitListenerAttribute.class);
+            if (!(bean instanceof AbstractMessageListener)) {
+                LOGGER.warn("message listener must extends AbstractMessageListener");
+                continue;
+            }
+
+            // 如果为持久化广播时，消费者编号不能为空
+            if (attribute.isPersistentPublish() && StringUtils.isBlank(attribute.consumerId())) {
+                LOGGER.error("consumeId can not be empty on persistentPublish is true, the bean is {}", bean);
+                throw new MessageException("consumeId can not be empty");
+            }
             // 监听自动注册
             register(bean, RabbitMessageListenerContainerConfig.build(attribute));
-            started = true;
-            LOGGER.info("message listener registry success");
         }
-    }
-
-    private void checkInstance(Object bean, MessageListenerAttribute attribute) {
-        if (!(bean instanceof AbstractMessageListener)) {
-            throw new MessageException("The message listener must extends AbstractMessageListener");
-        }
-
-        // 如果为持久化广播时，消费者编号不能为空
-        if (attribute.isPersistentPublish() && StringUtils.isBlank(attribute.consumerId())) {
-            LOGGER.error("persistentPublish must consumeId ,class:{}", bean);
-            throw new MessageException("persistentPublish mode must  consumeId");
-        }
+        LOGGER.info("message listener registry success");
+        started = true;
     }
 
 }

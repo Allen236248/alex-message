@@ -38,9 +38,7 @@ public class DefaultRabbitMessageProducer extends AbstractRabbitMessageProducer 
 
     @Override
     public void publish(String topicName, Object message) {
-        MessageInfo msg = createMessage(topicName, message);
-        publish(topicName, msg, msg.getBrokerName(), false);
-        LOGGER.info("发送广播消息：queueName:{}，源消息:{}，消息头:{}", topicName, message, msg);
+        publish(topicName, message, false);
     }
 
     @Override
@@ -56,7 +54,7 @@ public class DefaultRabbitMessageProducer extends AbstractRabbitMessageProducer 
     }
 
     private void send(String queueName, Object message, String broker, boolean isDelay, final long delayTime) {
-        RabbitTemplate rabbitTemplate = rabbitConnectionManager.getRabbitTemplateForDirect(queueName, broker, isDelay);
+        RabbitTemplate rabbitTemplate = rabbitConnectionManager.getRabbitTemplateForDirect(queueName, isDelay, broker);
         rabbitTemplate.convertAndSend(queueName, message, new MessagePostProcessor() {
             @Override
             public Message postProcessMessage(Message message) throws AmqpException {

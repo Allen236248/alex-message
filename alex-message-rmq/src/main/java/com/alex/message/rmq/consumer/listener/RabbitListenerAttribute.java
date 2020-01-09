@@ -16,7 +16,7 @@ import java.lang.annotation.*;
 @Target({ElementType.TYPE, ElementType.METHOD, ElementType.ANNOTATION_TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 @Component
-public @interface MessageListenerAttribute {
+public @interface RabbitListenerAttribute {
     /** 必须目的地名称 */
     String destName();
 

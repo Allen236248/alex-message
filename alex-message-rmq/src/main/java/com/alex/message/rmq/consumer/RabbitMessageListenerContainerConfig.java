@@ -1,8 +1,8 @@
 package com.alex.message.rmq.consumer;
 
 import com.alex.message.rmq.Broker;
-import com.alex.message.rmq.consumer.listener.MessageListenerAttribute;
-import com.alex.message.rmq.consumer.listener.MessageListenerAttribute.MultiBrokerListenerAttribute;
+import com.alex.message.rmq.consumer.listener.RabbitListenerAttribute;
+import com.alex.message.rmq.consumer.listener.RabbitListenerAttribute.MultiBrokerListenerAttribute;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -111,7 +111,7 @@ public class RabbitMessageListenerContainerConfig {
         this.consumerId = consumerId;
     }
 
-    public static RabbitMessageListenerContainerConfig build(MessageListenerAttribute attribute) {
+    public static RabbitMessageListenerContainerConfig build(RabbitListenerAttribute attribute) {
         RabbitMessageListenerContainerConfig config = new RabbitMessageListenerContainerConfig();
         config.setDestName(attribute.destName());
         config.setConcurrentConsumers(attribute.concurrentConsumers());
