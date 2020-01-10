@@ -42,6 +42,9 @@ public abstract class AbstractMessageListener<T> {
             Codec codec = CodecFactory.getCodes(contentType.toString());
             obj = codec.decode(messageInfo.getBody(), clazz);
         }
+        if (obj == null) {
+            throw new MessageCodecException("Failed to transCodec Message content");
+        }
         return obj;
     }
 

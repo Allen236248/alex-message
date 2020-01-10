@@ -1,4 +1,4 @@
-package com.allen.message.amq.producer;
+package com.alex.message.amq.producer;
 
 public interface AMQMessageProducer<M> {
 

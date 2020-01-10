@@ -122,9 +122,7 @@ public class RabbitConnectionManager implements PriorityOrdered {
      * 点对点消息，持久化队列，延时队列
      */
     public RabbitTemplate getRabbitTemplateForDirect(String queueName, boolean isDelay, String brokerName) {
-        String exchangeName = queueName + "_Exchange";
-        String routingKey = queueName + "_Routing";
-        declareBinding(exchangeName, "direct", queueName, routingKey, true, false, isDelay, brokerName);
+        declareBindingForDirect(queueName, true, isDelay, brokerName);
 
         RabbitTemplate amqpTemplate = this.getRabbitAdmin(brokerName).getRabbitTemplate();
         return amqpTemplate;
@@ -141,38 +139,16 @@ public class RabbitConnectionManager implements PriorityOrdered {
         return amqpTemplate;
     }
 
-
     /**
-     * 提供广播功能，临时队列
+     * 点对点消息
+     *
+     * @param durable 是否为持久化队列
      */
-    public String getQueueNamePublish(String name, String brokerName, String consumerId, String exchangeName) {
-        String queueName = "publish." + UUID.randomUUID() + "." + name.toLowerCase();
-        declareBinding(name, "fanout", queueName, null, false, true, false, brokerName);
-        if (StringUtils.isNotBlank(exchangeName)) {
-            declareBinding(exchangeName, "fanout", queueName, null, false, true, false, brokerName);
-        }
-        return queueName;
-    }
-
-    /**
-     * 提供广播功能，临时队列
-     */
-    public String getQueueNamePublish(String name, String brokerName, String consumerId) {
-        String queueName = "publish." + UUID.randomUUID() + "." + name.toLowerCase();
-        declareBindingForFanout(name, null, false, brokerName);
-        return queueName;
-    }
-
-    /**
-     * 提供广播功能，持久化队列
-     */
-    public String getQueueNamePersistentPublish(String topicName, String consumerId, String brokerName) {
-        String queueName = null;
-        if (null != consumerId) {
-            queueName = "persistent.publish." + consumerId.toLowerCase() + "." + topicName.toLowerCase();
-        }
-        declareBindingForFanout(topicName, null, true, brokerName);
-        return queueName;
+    public void declareBindingForDirect(String queueName, boolean durable, boolean isDelay, String brokerName) {
+        String exchangeName = queueName + "_Exchange";
+        String routingKey = queueName + "_Routing";
+        boolean autoDelete = !durable;
+        declareBinding(exchangeName, "direct", queueName, routingKey, durable, autoDelete, isDelay, brokerName);
     }
 
     /**
@@ -180,7 +156,7 @@ public class RabbitConnectionManager implements PriorityOrdered {
      *
      * @param durable 是否为持久化队列
      */
-    private void declareBindingForFanout(String exchangeName, String queueName, boolean durable, String brokerName) {
+    public void declareBindingForFanout(String exchangeName, String queueName, boolean durable, String brokerName) {
         boolean autoDelete = !durable;
         declareBinding(exchangeName, "fanout", queueName, null, durable, autoDelete, false, brokerName);
     }
