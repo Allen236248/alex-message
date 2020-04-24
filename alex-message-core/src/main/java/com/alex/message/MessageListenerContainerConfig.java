@@ -31,7 +31,6 @@ public class MessageListenerContainerConfig implements Serializable {
      */
     private String connectionFactoryName;
 
-
     /**
      * 必须，目的地名称
      */

@@ -18,9 +18,9 @@ import java.util.Map;
  * 消息容器注册类 ，用于自动注册消息容器到spring容器中并启动
  */
 @Component
-public class RabbitDefaultMessageListenerRegistry extends AbstractRabbitMessageListenerRegistry {
+public class DefaultRabbitMessageListenerRegistry extends AbstractRabbitMessageListenerRegistry {
 
-    private final Logger LOGGER = LoggerFactory.getLogger(RabbitDefaultMessageListenerRegistry.class);
+    private final Logger LOGGER = LoggerFactory.getLogger(DefaultRabbitMessageListenerRegistry.class);
 
     @Override
     public void onApplicationEvent(ContextRefreshedEvent event) {
@@ -55,14 +55,17 @@ public class RabbitDefaultMessageListenerRegistry extends AbstractRabbitMessageL
         return rabbitConfig;
     }
 
-    /** 查找项目中所有的协议转换类 */
+    /**
+     * 查找项目中所有的协议转换类
+     */
     private void registerCodec() {
         Map<String, Codec> beans = SpringContextHolder.getBeans(Codec.class);
-        if (beans != null && beans.size() > 0) {
-            for (String bean : beans.keySet()) {
-                Codec transCodec = beans.get(bean);
-                CodecFactory.addCodec(transCodec);
-            }
+        if (null == beans || beans.isEmpty())
+            return;
+
+        for (String bean : beans.keySet()) {
+            Codec transCodec = beans.get(bean);
+            CodecFactory.addCodec(transCodec);
         }
     }
 }

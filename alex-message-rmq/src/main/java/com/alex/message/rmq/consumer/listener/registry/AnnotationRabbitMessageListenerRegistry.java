@@ -16,9 +16,9 @@ import org.springframework.stereotype.Component;
  * 消息容器注册类，用于收集消息监听配置，自动注册到Spring容器中
  */
 @Component
-public class RabbitAnnotationMessageListenerRegistry extends AbstractRabbitMessageListenerRegistry {
+public class AnnotationRabbitMessageListenerRegistry extends AbstractRabbitMessageListenerRegistry {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(RabbitAnnotationMessageListenerRegistry.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(AnnotationRabbitMessageListenerRegistry.class);
 
     private volatile boolean started = false;
 
