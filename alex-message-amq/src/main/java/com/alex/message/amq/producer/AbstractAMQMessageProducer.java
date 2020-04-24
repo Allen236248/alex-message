@@ -1,12 +1,10 @@
 package com.alex.message.amq.producer;
+
 import com.alex.message.producer.MessageProducer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jms.core.JmsTemplate;
-
-import javax.jms.ConnectionFactory;
 
 public abstract class AbstractAMQMessageProducer implements AMQMessageProducer, MessageProducer {
 
@@ -17,9 +15,5 @@ public abstract class AbstractAMQMessageProducer implements AMQMessageProducer, 
 
     @Autowired
     protected JmsTemplate jmsTemplate;
-
-    @Autowired
-    @Qualifier("jmsConnectionFactory")
-    protected ConnectionFactory connectionFactory;
 
 }

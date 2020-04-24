@@ -38,7 +38,7 @@
     	<property name="maximumRedeliveryDelay" value="60000" />
     </bean>
 
-    <bean id="jmsCommonTemplate" class="org.springframework.jms.core.JmsTemplate">
+    <bean id="jmsTemplate" class="org.springframework.jms.core.JmsTemplate">
         <property name="connectionFactory" ref="jmsFactory"/>
         <property name="defaultDestinationName"  value="default"></property>
     </bean>
