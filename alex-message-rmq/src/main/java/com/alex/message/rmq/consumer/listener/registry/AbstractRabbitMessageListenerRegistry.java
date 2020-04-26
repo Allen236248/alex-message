@@ -45,6 +45,11 @@ public abstract class AbstractRabbitMessageListenerRegistry extends AbstractMess
     @Autowired
     private RabbitConnectionManager rabbitConnectionManager;
 
+    @Override
+    protected void register(MessageHandler messageHandler) {
+        //empty implementation
+    }
+
     protected void register(Object messageListener, RabbitMessageListenerContainerConfig config) {
         // 初始化默认的broker监听器
         String brokerName = Broker.DEFAULT_BROKER_NAME;

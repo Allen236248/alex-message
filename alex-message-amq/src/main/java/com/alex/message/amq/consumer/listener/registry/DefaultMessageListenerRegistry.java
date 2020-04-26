@@ -1,7 +1,7 @@
 package com.alex.message.amq.consumer.listener.registry;
 
 import com.alex.message.MessageListenerContainerConfig;
-import com.alex.message.amq.consumer.listener.DefaultMessageListener;
+import com.alex.message.amq.consumer.listener.MessageListenerDelegate;
 import com.alex.message.consumer.handler.MessageHandler;
 import com.alex.message.consumer.registry.AbstractMessageListenerRegistry;
 import com.alex.message.utils.BeanUtils;
@@ -28,14 +28,10 @@ public class DefaultMessageListenerRegistry extends AbstractMessageListenerRegis
     @Override
     protected void register(MessageHandler messageHandler) {
         String beanId = messageHandler.getClass().getSimpleName() + "_" + UUID.randomUUID() + "_ActiveMQ_MessageListener";
-        registerBean(beanId, DefaultMessageListener.class, null);
+        registerBean(beanId, MessageListenerDelegate.class, null);
 
-        //TODO 扩展MessageListenerHandler
-        //DefaultMessageListener defaultMessageListener = SpringContextHolder.getBean(beanId);
-        //defaultMessageListener.setMessageListenerHandler();
-
-        DefaultMessageListener messageListener = SpringContextHolder.getBean(beanId);
-        messageListener.getMessageListenerHandler().setMessageHandler(messageHandler);
+        MessageListenerDelegate messageListener = (MessageListenerDelegate) SpringContextHolder.getBean(beanId);
+        messageListener.setMessageHandler(messageHandler);
 
         MessageListenerContainerConfig config = messageHandler.getMessageListenerContainerConfig();
         if (config.getPubSubDomain()) {
@@ -66,11 +62,11 @@ public class DefaultMessageListenerRegistry extends AbstractMessageListenerRegis
             properties.put("pubSubDomain", false);
         }
 
-        String messageListenerContainerBeanName = beanId + "_MessageListenerContainer";
-        registerBean(messageListenerContainerBeanName, DefaultMessageListenerContainer.class, properties);
-        DefaultMessageListenerContainer messageListenerContainer = SpringContextHolder.getBean(messageListenerContainerBeanName);
+        String messageListenerContainerName = beanId + "_MessageListenerContainer";
+        registerBean(messageListenerContainerName, DefaultMessageListenerContainer.class, properties);
+        DefaultMessageListenerContainer messageListenerContainer = (DefaultMessageListenerContainer) SpringContextHolder.getBean(messageListenerContainerName);
         messageListenerContainer.start();
-        LOGGER.info("MessageListenerContainer:{} for destination {} is started，The listener is{}", messageListenerContainerBeanName, destName, beanId);
+        LOGGER.info("MessageListenerContainer:{} for destination {} is started，The listener is{}", messageListenerContainerName, destName, beanId);
     }
 
 }
