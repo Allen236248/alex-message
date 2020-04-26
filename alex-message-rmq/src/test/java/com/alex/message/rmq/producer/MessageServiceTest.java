@@ -13,7 +13,7 @@ public class MessageServiceTest extends Launcher {
 
     @Test
     public void testSend() {
-        rabbitMessageProducer.send("rabbit_msg_test", "33333");
+        rabbitMessageProducer.send("rabbit_msg_handler_test", "33333");
 
         try {
             Thread.currentThread().join();
