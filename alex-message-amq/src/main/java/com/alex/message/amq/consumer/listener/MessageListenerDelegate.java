@@ -26,7 +26,7 @@ public class MessageListenerDelegate<T> implements MessageListener {
     @Override
     public final void onMessage(Message message) {
         try {
-            Class<T> clazz = ReflectionUtils.getActualType(messageHandler);
+            Class<T> clazz = ReflectionUtils.getActualType(messageHandler, MessageHandler.class);
 
             if(!(message instanceof TextMessage)) {
                 throw new MessageException("不支持的消息类型");

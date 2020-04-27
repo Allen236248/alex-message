@@ -12,7 +12,7 @@ public final class MessageListenerDelegate<T> extends AbstractMessageListener<T>
     private MessageHandler<T> messageHandler;
 
     public MessageListenerDelegate(MessageHandler<T> messageHandler) {
-        super(ReflectionUtils.getActualType(messageHandler));
+        super(ReflectionUtils.getActualType(messageHandler, MessageHandler.class));
         this.messageHandler = messageHandler;
     }
 
