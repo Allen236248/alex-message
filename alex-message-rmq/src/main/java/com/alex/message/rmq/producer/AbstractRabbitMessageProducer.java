@@ -29,9 +29,9 @@ public abstract class AbstractRabbitMessageProducer implements RabbitMessageProd
             throw new MessageException("message must not null!");
         }
         if (message instanceof MessageInfo) { // 直接传入MessageBase对象
-            msg = MessageInfoBuilder.build((MessageInfo) message, queueName);
+            msg = MessageInfoBuilder.build((MessageInfo) message);
         } else {
-            msg = MessageInfoBuilder.build(codec, message, queueName);
+            msg = MessageInfoBuilder.build(codec, message);
         }
         msg.setQueueName(queueName);
         setBrokerName(msg);

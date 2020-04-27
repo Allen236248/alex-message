@@ -24,28 +24,18 @@ public class DefaultRabbitMessageProducer extends AbstractRabbitMessageProducer 
 
     @Override
     public void send(String queueName, Object message) {
-        MessageInfo msg = createMessage(queueName, message);
-        send(queueName, msg, msg.getBrokerName());
-        LOGGER.info("发送点对点消息：queueName:{}，源消息:{}，消息头:{}", queueName, message, msg);
+        send(queueName, message, 0);
     }
 
     @Override
     public void send(String queueName, Object message, long delayTime) {
         MessageInfo msg = createMessage(queueName, message);
-        send(queueName, msg, msg.getBrokerName(), true, delayTime);
+        if(delayTime <= 0) {
+            send(queueName, msg, msg.getBrokerName());
+        } else {
+            send(queueName, msg, msg.getBrokerName(), true, delayTime);
+        }
         LOGGER.info("发送点对点延时消息：queueName:{}，源消息:{}，消息头:{}", queueName, message, msg);
-    }
-
-    @Override
-    public void publish(String topicName, Object message) {
-        publish(topicName, message, false);
-    }
-
-    @Override
-    public void publish(String topicName, Object message, boolean isPersistent) {
-        MessageInfo msg = createMessage(topicName, message);
-        publish(topicName, msg, msg.getBrokerName(), isPersistent);
-        LOGGER.info("发送广播消息：queueName:{}，源消息:{}，消息头:{}", topicName, message, msg);
     }
 
     private void send(String queueName, Object message, String broker) {
@@ -63,6 +53,18 @@ public class DefaultRabbitMessageProducer extends AbstractRabbitMessageProducer 
                 return message;
             }
         });
+    }
+
+    @Override
+    public void publish(String topicName, Object message) {
+        publish(topicName, message, false);
+    }
+
+    @Override
+    public void publish(String topicName, Object message, boolean isPersistent) {
+        MessageInfo msg = createMessage(topicName, message);
+        publish(topicName, msg, msg.getBrokerName(), isPersistent);
+        LOGGER.info("发送广播消息：queueName:{}，源消息:{}，消息头:{}", topicName, message, msg);
     }
 
     private void publish(String topicName, Object message, String broker, boolean isPersistent) {
