@@ -13,7 +13,7 @@ import javax.jms.*;
  * 默认的消息服务实现，依赖spring
  */
 @Service
-public class DefaultAMQMessageProducer extends AbstractAMQMessageProducer {
+public class DefaultActiveMQMessageProducer extends AbstractActiveMQMessageProducer {
 
     @Override
     public void send(final String queueName, final Object message) {
