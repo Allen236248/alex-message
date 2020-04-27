@@ -9,15 +9,15 @@
     http://www.springframework.org/schema/context/spring-context-3.1.xsd
     http://www.springframework.org/schema/aop
     http://www.springframework.org/schema/aop/spring-aop-3.1.xsd">
-    
-    <bean class="com.alex.message.utils.SpringContextHolder" lazy-init="default" />
-    
-    <context:component-scan base-package="com.alex.message" />
 
-	<!-- 启动对@Aspectj注解的支持(自定义切面)--> 
-	<aop:aspectj-autoproxy proxy-target-class="true"  />  
+	<context:component-scan base-package="com.alex.message" />
 
-	<context:annotation-config />  
+	<bean class="com.alex.message.utils.SpringContextHolder" lazy-init="default" />
+
+	<!-- 启动对@Aspectj注解的支持(自定义切面)-->
+	<aop:aspectj-autoproxy proxy-target-class="true" />
+
+	<context:annotation-config />
 
     <bean id="placeholderConfigurer" class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer" >
     	<property name="location" value="classpath:META-INF/application.properties" />
