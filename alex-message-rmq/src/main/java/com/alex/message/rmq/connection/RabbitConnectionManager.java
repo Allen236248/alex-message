@@ -193,17 +193,11 @@ public class RabbitConnectionManager implements PriorityOrdered {
             needBinding = true;
         }
 
-        String prefix = isDelay ? Broker.TTL : DEAD_QUEUE_PREFIX;
-
         String queueKey = brokerName + "-" + queueName;
-        String deadQueueKey = brokerName + "-" + prefix + queueName;
         Queue queue = queues.get(queueKey);
-        Queue deadQueue = queues.get(deadQueueKey);
-        if (queue == null && StringUtils.isNotBlank(queueName)) {
-            declareQueue(exchangeName, exchangeType, queueName, routingKey, durable, autoDelete, isDelay, brokerName, queueKey, deadQueueKey);
+        if (queue == null) {
+            declareQueue(queueName, durable, autoDelete, brokerName, queueKey);
             queue = queues.get(queueKey);
-            deadQueue = queues.get(deadQueueKey);
-
             needBinding = true;
         }
 
@@ -212,7 +206,8 @@ public class RabbitConnectionManager implements PriorityOrdered {
             if (null != binding) {
                 bindings.add(bindRelation);
             }
-            bindingExchangeAndDeadQueue(exchangeName, exchangeType, routingKey, queue, deadQueue, durable, autoDelete, isDelay, brokerName, prefix);
+
+            declareDeadLetterQueueAndBinding(exchangeName, exchangeType, queue, routingKey, durable, autoDelete, isDelay, brokerName);
         }
     }
 
@@ -239,60 +234,30 @@ public class RabbitConnectionManager implements PriorityOrdered {
     }
 
     /**
-     * 创建队列
-     * 如果队列名称以dlq.开头，则为创建死信队列，直接创建
-     * 否则创建队列，如果是非延时队列，则指定消息死信后绑定的交换器和路由键；
-     * 如果是延时队列，则指定消息死信后绑定的交换器和路由键————创建延时队列，同时指定延时队列的消息再次死信后绑定的交换器和路由键；
+     * 声明Queue
      *
-     * @param exchangeName 交换器名称
-     * @param exchangeType
-     * @param queueName    队列名称
-     * @param routingKey   路由键
-     * @param durable      队列是否持久化，为true时服务器r重启队列不会消失
-     * @param autoDelete   队列在不被使用时是否自动删除（没有连接，并且没有未处理的消息)
-     * @param isDelay      是否延时队列
+     * @param queueName  队列名称
+     * @param durable    队列是否持久化，为true时服务器r重启队列不会消失
+     * @param autoDelete 队列在不被使用时是否自动删除（没有连接，并且没有未处理的消息)
      * @param brokerName
      * @param queueKey
-     * @param deadQueueKey
      */
-    private void declareQueue(String exchangeName, ExchangeType exchangeType, String queueName, String routingKey, boolean durable, boolean autoDelete, boolean isDelay, String brokerName, String queueKey, String deadQueueKey) {
+    private void declareQueue(String queueName, boolean durable, boolean autoDelete, String brokerName, String queueKey) {
         Queue queue = new Queue(queueName, durable, false, autoDelete, new HashMap<String, Object>());
-        // 死信队列。exclusive：队列是否是独占的，如果为true只能被一个connection使用，其他连接建立时会抛出异常
-        if (!queueName.startsWith(DEAD_QUEUE_PREFIX) && isDeadLetterQueueEnable(exchangeType, autoDelete)) {
-            Queue deadQueue = null;
-            if (isDelay) {
-                //如果是延时队列，死信后进入名称为ttl.exchangeName的交换器中；如果是非延时队列，死信后进入名称为dlq.exchangeName的交换器中；
-                queue.getArguments().put("x-dead-letter-exchange", Broker.TTL + exchangeName);
-                queue.getArguments().put("x-dead-letter-routing-key", Broker.TTL + routingKey);
-
-                deadQueue = new Queue(Broker.TTL + queueName, durable, false, autoDelete, new HashMap<String, Object>());
-                deadQueue.getArguments().put("x-dead-letter-exchange", DEAD_QUEUE_PREFIX + Broker.TTL + exchangeName);
-                deadQueue.getArguments().put("x-dead-letter-routing-key", DEAD_QUEUE_PREFIX + Broker.TTL + routingKey);
-            } else {
-                //通过配置队列的x-dead-letter-exchange及x-dead-letter-routing-key键值，队列中消息死信后就会被重新发送到指定的x-dead-letter-exchange中。
-                queue.getArguments().put("x-dead-letter-exchange", DEAD_QUEUE_PREFIX + exchangeName);
-                queue.getArguments().put("x-dead-letter-routing-key", DEAD_QUEUE_PREFIX + routingKey);
-
-                deadQueue = new Queue(DEAD_QUEUE_PREFIX + queueName, durable, false, autoDelete);
-            }
-            this.getRabbitAdmin(brokerName).declareQueue(deadQueue);
-            queues.put(deadQueueKey, deadQueue);
-        }
         this.getRabbitAdmin(brokerName).declareQueue(queue);
         queues.put(queueKey, queue);
     }
 
     /**
-     * 使用死信队列的要求：非广播消息或广播消息，但队列不自动删除
+     * 声明Exchange和Queue绑定
      *
+     * @param abstractExchange
      * @param exchangeType
-     * @param autoDelete
+     * @param routingKey
+     * @param queue
+     * @param brokerName
      * @return
      */
-    private boolean isDeadLetterQueueEnable(ExchangeType exchangeType, boolean autoDelete) {
-        return ExchangeType.Direct.equals(exchangeType) || (ExchangeType.Fanout.equals(exchangeType) && !autoDelete);
-    }
-
     private Binding bindingExchangeAndQueue(AbstractExchange abstractExchange, ExchangeType exchangeType, String routingKey, Queue queue, String brokerName) {
         Binding binding = null;
         if (ExchangeType.Direct.equals(exchangeType)) {
@@ -313,31 +278,74 @@ public class RabbitConnectionManager implements PriorityOrdered {
         return binding;
     }
 
-    private void bindingExchangeAndDeadQueue(String exchangeName, ExchangeType exchangeType, String routingKey, Queue queue, Queue deadQueue, boolean durable, boolean autoDelete, boolean isDelay, String brokerName, String prefix) {
-        if (null == deadQueue || !isDeadLetterQueueEnable(exchangeType, autoDelete))
+    /**
+     * 创建队列
+     * 如果队列名称以dlq.开头，则为创建死信队列，直接创建
+     * 否则创建队列，如果是非延时队列，则指定消息死信后绑定的交换器和路由键；
+     * 如果是延时队列，则指定消息死信后绑定的交换器和路由键————创建延时队列，同时指定延时队列的消息再次死信后绑定的交换器和路由键；
+     *
+     * @param exchangeName 交换器名称
+     * @param exchangeType
+     * @param queue    队列
+     * @param routingKey   路由键
+     * @param durable      队列是否持久化，为true时服务器r重启队列不会消失
+     * @param autoDelete   队列在不被使用时是否自动删除（没有连接，并且没有未处理的消息)
+     * @param isDelay      是否延时队列
+     * @param brokerName
+     */
+    private void declareDeadLetterQueueAndBinding(String exchangeName, ExchangeType exchangeType, Queue queue, String routingKey, boolean durable, boolean autoDelete, boolean isDelay, String brokerName) {
+        String prefix = isDelay ? Broker.TTL : DEAD_QUEUE_PREFIX;
+        String queueName = queue.getName();
+        if (queueName.startsWith(DEAD_QUEUE_PREFIX) || !isDeadLetterQueueEnable(exchangeType, autoDelete))
             return;
+
+        //如果非延时，直接定义死信队列；如果延时，定义的是延时队列
+        declareDeadLetterQueueAndBinding(queue, exchangeName, routingKey, queueName, prefix, durable, autoDelete, brokerName);
+
+        if (isDelay) {
+            Queue deadQueue = queues.get(brokerName + "-" + prefix + queueName);
+
+            prefix = DEAD_QUEUE_PREFIX + prefix;
+
+            //如果延时，再定义延时队列的死信队列
+            declareDeadLetterQueueAndBinding(deadQueue, exchangeName, routingKey, queueName, prefix, durable, autoDelete, brokerName);
+        }
+    }
+
+    /**
+     *
+     * @param exchangeName
+     * @param routingKey
+     * @param queueName
+     * @param durable
+     * @param autoDelete
+     * @param brokerName
+     */
+    private void declareDeadLetterQueueAndBinding(Queue queue, String exchangeName, String routingKey, String queueName, String prefix, boolean durable, boolean autoDelete, String brokerName) {
+        //通过配置队列的x-dead-letter-exchange及x-dead-letter-routing-key键值，队列中消息死信后就会被重新发送到指定的x-dead-letter-exchange中。
+        //如果是延时队列，死信后进入名称为ttl.exchangeName的交换器中；如果是非延时队列，死信后进入名称为dlq.exchangeName的交换器中；
+        queue.getArguments().put("x-dead-letter-exchange", prefix + exchangeName);
+        queue.getArguments().put("x-dead-letter-routing-key", prefix + routingKey);
+        Queue deadQueue = new Queue(prefix + queueName, durable, false, autoDelete, new HashMap<String, Object>());;
+        this.getRabbitAdmin(brokerName).declareQueue(deadQueue);
+        queues.put(brokerName + "-" + prefix + queueName, deadQueue);
 
         // 声明死信队列绑定关系
         DirectExchange exchange = new DirectExchange(prefix + exchangeName, durable, autoDelete);
         this.getRabbitAdmin(brokerName).declareExchange(exchange);
         Binding binding = BindingBuilder.bind(deadQueue).to(exchange).with(prefix + routingKey);
         this.getRabbitAdmin(brokerName).declareBinding(binding);
+    }
 
-        if (isDelay) {
-            // 如果是延时，创建了队列名为queue的队列，需要生成一个名为 ttl.exchange 的交换器。
-            // 如果queue里的消息超时，消息将进入ttl.exchange的交换器，并被与此交换器绑定的队列（ttl.queue）消费。
-            // 如果ttl.queue的消息消费失败了，将进入dlq.ttl.exchange的死信交换器，此交换器也需定义队列与之绑定
-            DirectExchange deadTtlExchange = new DirectExchange(DEAD_QUEUE_PREFIX + prefix + exchangeName, durable, autoDelete);
-            this.getRabbitAdmin(brokerName).declareExchange(deadTtlExchange);
-
-            Queue deadTtlQueue = new Queue(DEAD_QUEUE_PREFIX + prefix + queue.getName(), durable, false, autoDelete);
-            getRabbitAdmin(brokerName).declareQueue(deadTtlQueue); // 声明queue
-
-            Binding deadttlBinding = BindingBuilder.bind(deadTtlQueue).to(deadTtlExchange).with(DEAD_QUEUE_PREFIX + prefix + routingKey);
-            getRabbitAdmin(brokerName).declareBinding(deadttlBinding);
-        }
-
-
+    /**
+     * 使用死信队列的要求：非广播消息或广播消息，但队列不自动删除
+     *
+     * @param exchangeType
+     * @param autoDelete
+     * @return
+     */
+    private boolean isDeadLetterQueueEnable(ExchangeType exchangeType, boolean autoDelete) {
+        return ExchangeType.Direct.equals(exchangeType) || (ExchangeType.Fanout.equals(exchangeType) && !autoDelete);
     }
 
     // 其它应用优先加载
