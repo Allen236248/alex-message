@@ -16,8 +16,7 @@ public class MessageServiceTest extends Launcher {
 
     @Test
     public void testSendWithHandlerConsumer() {
-        Book book = createBook("handler");
-        rabbitMessageProducer.send("rabbit_msg_handler_test", book);
+        rabbitMessageProducer.send("rabbit_msg_handler_test", "333333");
 
         threadJoin();
     }
@@ -25,7 +24,15 @@ public class MessageServiceTest extends Launcher {
     @Test
     public void testDirectWithNoDelayRabbitMessageListener() {
         Book book = createBook("listener");
-        rabbitMessageProducer.send("direct_no_delay_rabbit_msg_test", book);
+        rabbitMessageProducer.send("direct_no_delay_rabbit_test", book);
+
+        threadJoin();
+    }
+
+    @Test
+    public void testDirectWithDelayRabbitMessageListener() {
+        Book book = createBook("listener");
+        rabbitMessageProducer.send("direct_delay_rabbit_test", book, 10 * 1000);
 
         threadJoin();
     }
