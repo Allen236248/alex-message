@@ -23,9 +23,9 @@ public class MessageServiceTest extends Launcher {
     }
 
     @Test
-    public void testSendWithListenerConsumer() {
+    public void testDirectWithNoDelayRabbitMessageListener() {
         Book book = createBook("listener");
-        rabbitMessageProducer.send("rabbit_msg_test", book);
+        rabbitMessageProducer.send("direct_no_delay_rabbit_msg_test", book);
 
         threadJoin();
     }

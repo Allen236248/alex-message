@@ -10,7 +10,7 @@ public class Broker {
      */
     public static final String DEFAULT_BROKER_NAME = "DEFAULT_BROKER";
 
-    /** 延时队列前缀 */
+    /** 延时队列前缀 Time To Live */
     public static final String TTL = "ttl.";
 
     /** 目标名称 */

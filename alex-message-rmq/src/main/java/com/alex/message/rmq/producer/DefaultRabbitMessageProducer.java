@@ -61,14 +61,14 @@ public class DefaultRabbitMessageProducer extends AbstractRabbitMessageProducer 
     }
 
     @Override
-    public void publish(String topicName, Object message, boolean isPersistent) {
+    public void publish(String topicName, Object message, boolean durable) {
         MessageInfo msg = createMessage(topicName, message);
-        publish(topicName, msg, msg.getBrokerName(), isPersistent);
+        publish(topicName, msg, msg.getBrokerName(), durable);
         LOGGER.info("发送广播消息：queueName:{}，源消息:{}，消息头:{}", topicName, message, msg);
     }
 
-    private void publish(String topicName, Object message, String broker, boolean isPersistent) {
-        RabbitTemplate amqpTemplate = rabbitConnectionManager.getRabbitTemplateForFanout(topicName, broker, isPersistent);
+    private void publish(String topicName, Object message, String broker, boolean durable) {
+        RabbitTemplate amqpTemplate = rabbitConnectionManager.getRabbitTemplateForFanout(topicName, broker, durable);
         amqpTemplate.convertAndSend(message);
     }
 
