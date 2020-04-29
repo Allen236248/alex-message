@@ -6,7 +6,7 @@ import com.alex.message.rmq.consumer.listener.AbstractMessageListener;
 import com.alex.message.rmq.consumer.listener.RabbitListenerAttribute;
 import com.alibaba.fastjson.JSON;
 
-@RabbitListenerAttribute(destName = "direct_no_delay_rabbit_test")
+//@RabbitListenerAttribute(destName = "direct_no_delay_rabbit_test")
 public class DirectWithNoDelayRabbitMessageListenerTest extends AbstractMessageListener<Book> {
 
     public DirectWithNoDelayRabbitMessageListenerTest() {

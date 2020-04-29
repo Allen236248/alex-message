@@ -7,7 +7,7 @@ import com.alex.message.model.Book;
 import com.alibaba.fastjson.JSON;
 import org.springframework.stereotype.Component;
 
-@Component
+//@Component
 public class RabbitMessageHandlerTest implements MessageHandler<Book> {
 
     @Override

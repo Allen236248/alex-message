@@ -4,11 +4,11 @@ import com.alex.message.exception.MessageException;
 import com.alex.message.rmq.Broker;
 import com.alex.message.rmq.converter.RabbitMessageConverter;
 import com.alex.message.utils.PropertiesUtils;
+import com.rabbitmq.http.client.domain.ExchangeType;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.*;
-import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -17,7 +17,10 @@ import org.springframework.core.PriorityOrdered;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 @Component
 public class RabbitConnectionManager implements PriorityOrdered {
@@ -30,7 +33,7 @@ public class RabbitConnectionManager implements PriorityOrdered {
     @Autowired
     private PropertiesUtils propertiesUtils;
 
-    private Map<String, ? super AbstractExchange> exchanges = new HashMap<>();
+    private Map<String, AbstractExchange> exchanges = new HashMap<>();
 
     private Map<String, Queue> queues = new HashMap<String, Queue>();
 
@@ -40,6 +43,7 @@ public class RabbitConnectionManager implements PriorityOrdered {
 
     private Map<String, RabbitAdmin> rabbitAdminHolder = new HashMap<String, RabbitAdmin>();
 
+    //Dead Letter Queue 死信队列
     public static final String DEAD_QUEUE_PREFIX = "dlq.";
 
     /**
@@ -52,7 +56,7 @@ public class RabbitConnectionManager implements PriorityOrdered {
         String username = rabbitConnectionConfig.getUsername();
         String password = rabbitConnectionConfig.getPassword();
         if (StringUtils.isBlank(host) || StringUtils.isBlank(port) || StringUtils.isBlank(username) || StringUtils.isBlank(password)) {
-            LOGGER.warn("初始化连接工厂配置host/port/username/password不能为空");
+            LOGGER.error("初始化连接工厂配置host/port/username/password不能为空");
             return;
         }
 
@@ -75,7 +79,7 @@ public class RabbitConnectionManager implements PriorityOrdered {
             return this.connectionFactoryCache.get(brokerName);
         }
 
-        // 获取当前需要支持的所有broker
+        //TODO 获取当前需要支持的所有Broker，此段逻辑意义是什么？
         String host = propertiesUtils.getPropertiesValue(brokerName + "." + RabbitConnectionConfig.HOST);
         String port = propertiesUtils.getPropertiesValue(brokerName + "." + RabbitConnectionConfig.PORT);
         String username = propertiesUtils.getPropertiesValue(brokerName + "." + RabbitConnectionConfig.USERNAME);
@@ -119,24 +123,35 @@ public class RabbitConnectionManager implements PriorityOrdered {
     }
 
     /**
-     * 点对点消息，持久化队列，延时队列
+     * 点对点消息
+     *
+     * @param queueName
+     * @param isDelay    是否延时
+     * @param brokerName
+     * @return
      */
     public RabbitTemplate getRabbitTemplateForDirect(String queueName, boolean isDelay, String brokerName) {
         declareBindingForDirect(queueName, true, isDelay, brokerName);
 
-        RabbitTemplate amqpTemplate = this.getRabbitAdmin(brokerName).getRabbitTemplate();
-        return amqpTemplate;
+        RabbitTemplate rabbitTemplate = this.getRabbitAdmin(brokerName).getRabbitTemplate();
+        return rabbitTemplate;
     }
 
     /**
-     * 广播消息，持久化队列
+     * 获取Fanout类型（广播消息）的RabbitTemplate
+     *
+     * @param topicName
+     * @param brokerName
+     * @param durable    是否持久化
+     * @return
      */
-    public RabbitTemplate getRabbitTemplateForFanout(String topicName, String brokerName, boolean isPersistent) {
-        declareBindingForFanout(topicName, null, isPersistent, brokerName);
+    public RabbitTemplate getRabbitTemplateForFanout(String topicName, String brokerName, boolean durable) {
+        declareBindingForFanout(topicName, null, durable, brokerName);
 
-        RabbitTemplate amqpTemplate = this.getRabbitAdmin(brokerName).getRabbitTemplate();
-        amqpTemplate.setExchange(topicName);
-        return amqpTemplate;
+        RabbitTemplate rabbitTemplate = this.getRabbitAdmin(brokerName).getRabbitTemplate();
+        //TODO
+        rabbitTemplate.setExchange(topicName);
+        return rabbitTemplate;
     }
 
     /**
@@ -148,7 +163,7 @@ public class RabbitConnectionManager implements PriorityOrdered {
         String exchangeName = queueName + "_Exchange";
         String routingKey = queueName + "_Routing";
         boolean autoDelete = !durable;
-        declareBinding(exchangeName, "direct", queueName, routingKey, durable, autoDelete, isDelay, brokerName);
+        declareBinding(exchangeName, ExchangeType.Direct, queueName, routingKey, durable, autoDelete, isDelay, brokerName);
     }
 
     /**
@@ -158,23 +173,25 @@ public class RabbitConnectionManager implements PriorityOrdered {
      */
     public void declareBindingForFanout(String exchangeName, String queueName, boolean durable, String brokerName) {
         boolean autoDelete = !durable;
-        declareBinding(exchangeName, "fanout", queueName, null, durable, autoDelete, false, brokerName);
+        declareBinding(exchangeName, ExchangeType.Fanout, queueName, null, durable, autoDelete, false, brokerName);
     }
 
     /**
-     * 声明exchange和queue已经它们的绑定关系
+     * 声明exchange和queue以及它们的绑定关系
      */
-    private synchronized void declareBinding(String exchangeName, String exchangeType, String queueName, String routingKey, boolean durable,
+    private synchronized void declareBinding(String exchangeName, ExchangeType exchangeType, String queueName, String routingKey, boolean durable,
                                              boolean autoDelete, boolean isDelay, String brokerName) {
-        String bindRelation = brokerName + "-" + exchangeName + "-" + queueName;
-        if (bindings.contains(bindRelation)) {
-            return;
-        }
-        String prefix = isDelay ? Broker.TTL : DEAD_QUEUE_PREFIX;
+        if (StringUtils.isBlank(queueName))
+            throw new MessageException("Queue name can not be empty");
 
+        String bindRelation = brokerName + "-" + exchangeName + "-" + queueName;
+        if (bindings.contains(bindRelation))
+            return;
+
+        String prefix = isDelay ? Broker.TTL : DEAD_QUEUE_PREFIX;
         boolean needBinding = false;
         String exchangeKey = brokerName + "-" + exchangeName;
-        AbstractExchange abstractExchange = (AbstractExchange) exchanges.get(exchangeKey);
+        AbstractExchange abstractExchange = exchanges.get(exchangeKey);
         if (abstractExchange == null) {
             // 声明Exchange
             abstractExchange = declareExchange(exchangeName, exchangeType, durable, autoDelete, brokerName);
@@ -186,14 +203,16 @@ public class RabbitConnectionManager implements PriorityOrdered {
         String deadQueueKey = brokerName + "-" + prefix + queueName;
         Queue queue = queues.get(queueKey);
         Queue deadQueue = queues.get(deadQueueKey);
-        if (queue == null && StringUtils.isNotBlank(queueName)) {
-            queue = declareQueue(exchangeName, queueName, routingKey, durable, autoDelete, isDelay, brokerName, prefix);
+        if (queue == null) {
+            queue = declareQueue(exchangeName, queueName, routingKey, durable, autoDelete, isDelay, brokerName);
             queues.put(queueKey, queue);
 
-            //如果延时，实际生成的为延时队列
-            deadQueue = declareDeadQueue(exchangeName, exchangeType, queueName, routingKey, durable, autoDelete, isDelay, brokerName, prefix);
-            queues.put(deadQueueKey, deadQueue);
-
+            // 使用死信队列的要求：非广播消息或广播消息，但队列不自动删除
+            if (isDeadLetterQueueEnable(exchangeType, autoDelete)) {
+                //如果延时，实际生成的为延时队列
+                deadQueue = declareDeadQueue(exchangeName, queueName, routingKey, durable, autoDelete, isDelay, brokerName);
+                queues.put(deadQueueKey, deadQueue);
+            }
             needBinding = true;
         }
 
@@ -204,19 +223,6 @@ public class RabbitConnectionManager implements PriorityOrdered {
             }
             bindingExchangeAndDeadQueue(exchangeName, exchangeType, routingKey, queue, deadQueue, durable, autoDelete, isDelay, brokerName, prefix);
         }
-    }
-
-    private AbstractExchange declareExchange(String exchangeName, String exchangeType, boolean durable, boolean autoDelete, String brokerName) {
-        AbstractExchange abstractExchange = null;
-        if ("direct".equals(exchangeType)) {
-            abstractExchange = new DirectExchange(exchangeName, durable, autoDelete);
-        } else if ("fanout".equals(exchangeType)) {
-            abstractExchange = new FanoutExchange(exchangeName, durable, autoDelete);
-        } else if ("topic".equals(exchangeType)) {
-            abstractExchange = new TopicExchange(exchangeName, durable, autoDelete);
-        }
-        this.getRabbitAdmin(brokerName).declareExchange(abstractExchange);
-        return abstractExchange;
     }
 
     /**
@@ -233,21 +239,19 @@ public class RabbitConnectionManager implements PriorityOrdered {
      * @param brokerName
      * @return
      */
-    private Queue declareQueue(String exchangeName, String queueName, String routingKey, boolean durable, boolean autoDelete, boolean isDelay, String brokerName, String prefix) {
-        Queue queue = null;
-        if (queueName.startsWith(DEAD_QUEUE_PREFIX)) {
-            //死信队列
-            queue = new Queue(queueName, durable, false, autoDelete);
-        } else {
+    private Queue declareQueue(String exchangeName, String queueName, String routingKey, boolean durable, boolean autoDelete, boolean isDelay, String brokerName) {
+        String prefix = isDelay ? Broker.TTL : DEAD_QUEUE_PREFIX;
+        Map<String, Object> arguments = new HashMap<String, Object>();
+        Queue queue = new Queue(queueName, durable, false, autoDelete, arguments);
+        if (!queueName.startsWith(DEAD_QUEUE_PREFIX)) {
             //通过配置队列的x-dead-letter-exchange及x-dead-letter-routing-key键值，队列中消息死信后就会被重新发送到指定的Dead Letter Exchange中。
-            Map<String, Object> arguments = new HashMap<String, Object>();
             //如果是延时队列，死信后进入名称为ttl.exchangeName的交换器中；如果是非延时队列，死信后进入名称为dlq.exchangeName的交换器中；
-            arguments.put("x-dead-letter-exchange", prefix + exchangeName);
-            arguments.put("x-dead-letter-routing-key", prefix + routingKey);
+            //arguments参数必须在RabbitAdmin声明队列以前设置才有效
+            queue.getArguments().put("x-dead-letter-exchange", prefix + exchangeName);
+            queue.getArguments().put("x-dead-letter-routing-key", prefix + routingKey);
             if (isDelay) {
-                arguments.put("x-message-ttl", Integer.MAX_VALUE);
+                queue.getArguments().put("x-message-ttl", Integer.MAX_VALUE);
             }
-            queue = new Queue(queueName, durable, false, autoDelete, arguments);
         }
         this.getRabbitAdmin(brokerName).declareQueue(queue);
         return queue;
@@ -260,7 +264,6 @@ public class RabbitConnectionManager implements PriorityOrdered {
      * 如果延时，创建延时队列（以ttl.为队列名前缀）的同时，指定队列消息死信后，将消息发送到的交换器
      *
      * @param exchangeName
-     * @param exchangeType
      * @param queueName
      * @param routingKey
      * @param durable
@@ -269,40 +272,53 @@ public class RabbitConnectionManager implements PriorityOrdered {
      * @param brokerName
      * @return
      */
-    private Queue declareDeadQueue(String exchangeName, String exchangeType, String queueName, String routingKey, boolean durable, boolean autoDelete, boolean isDelay, String brokerName, String prefix) {
-        if (queueName.startsWith(DEAD_QUEUE_PREFIX)) {
-            //死信队列，不再创建死信队列
-            return null;
+    private Queue declareDeadQueue(String exchangeName, String queueName, String routingKey, boolean durable, boolean autoDelete, boolean isDelay, String brokerName) {
+        String prefix = isDelay ? Broker.TTL : DEAD_QUEUE_PREFIX;
+        Map<String, Object> arguments = new HashMap<String, Object>();
+        Queue queue = new Queue(prefix + queueName, durable, false, autoDelete, arguments);
+        if (isDelay) {
+            queue.getArguments().put("x-dead-letter-exchange", DEAD_QUEUE_PREFIX + prefix + exchangeName);
+            queue.getArguments().put("x-dead-letter-routing-key", DEAD_QUEUE_PREFIX + prefix + routingKey);
         }
-        Queue deadQueue = null;
-        // 使用死信队列的要求：非广播消息或广播消息，但队列不自动删除
-        if (("fanout".equals(exchangeType) && !autoDelete) || "direct".equals(exchangeType)) {
-            if (isDelay) {
-                Map<String, Object> arguments = new HashMap<String, Object>();
-                arguments.put("x-dead-letter-exchange", DEAD_QUEUE_PREFIX + prefix + exchangeName);
-                arguments.put("x-dead-letter-routing-key", DEAD_QUEUE_PREFIX + prefix + routingKey);
-                deadQueue = new Queue(prefix + queueName, durable, false, autoDelete, arguments);
-            } else {
-                deadQueue = new Queue(prefix + queueName, durable, false, autoDelete);
-            }
-            this.getRabbitAdmin(brokerName).declareQueue(deadQueue);
-        }
-        return deadQueue;
+        this.getRabbitAdmin(brokerName).declareQueue(queue);
+        return queue;
     }
 
-    private Binding bindingExchangeAndQueue(AbstractExchange abstractExchange, String exchangeType, String routingKey, Queue queue, String brokerName) {
+    /**
+     * 声明Exchange
+     *
+     * @param exchangeName 交换器名称
+     * @param exchangeType 交换器类型
+     * @param durable      交换器是否持久化，如果为true则服务器重启时不会丢失
+     * @param autoDelete   交换器在不被使用时是否删除
+     * @param brokerName
+     */
+    private AbstractExchange declareExchange(String exchangeName, ExchangeType exchangeType, boolean durable, boolean autoDelete, String brokerName) {
+        AbstractExchange abstractExchange = null;
+        if (ExchangeType.Direct.equals(exchangeType)) {
+            abstractExchange = new DirectExchange(exchangeName, durable, autoDelete);
+        } else if (ExchangeType.Fanout.equals(exchangeType)) {
+            abstractExchange = new FanoutExchange(exchangeName, durable, autoDelete);
+        } else if (ExchangeType.Topic.equals(exchangeType)) {
+            abstractExchange = new TopicExchange(exchangeName, durable, autoDelete);
+        }
+        this.getRabbitAdmin(brokerName).declareExchange(abstractExchange);
+        return abstractExchange;
+    }
+
+    private Binding bindingExchangeAndQueue(AbstractExchange abstractExchange, ExchangeType exchangeType, String routingKey, Queue queue, String brokerName) {
         Binding binding = null;
-        if ("direct".equals(exchangeType)) {
+        if (ExchangeType.Direct.equals(exchangeType)) {
             DirectExchange directExchange = (DirectExchange) abstractExchange;
             binding = BindingBuilder.bind(queue).to(directExchange).with(routingKey);// 将queue绑定到exchange
             getRabbitAdmin(brokerName).declareBinding(binding);// 声明绑定关系
-        } else if ("fanout".equals(exchangeType)) {
+        } else if (ExchangeType.Fanout.equals(exchangeType)) {
             FanoutExchange fanoutExchange = (FanoutExchange) abstractExchange;
             if (queue != null) {
                 binding = BindingBuilder.bind(queue).to(fanoutExchange);
                 getRabbitAdmin(brokerName).declareBinding(binding);// 声明绑定关系
             }
-        } else if ("topic".equals(exchangeType)) {
+        } else if (ExchangeType.Topic.equals(exchangeType)) {
             TopicExchange topicExchange = (TopicExchange) abstractExchange;
             binding = BindingBuilder.bind(queue).to(topicExchange).with(routingKey);// 将queue绑定到exchange
             getRabbitAdmin(brokerName).declareBinding(binding);// 声明绑定关系
@@ -310,13 +326,13 @@ public class RabbitConnectionManager implements PriorityOrdered {
         return binding;
     }
 
-    private void bindingExchangeAndDeadQueue(String exchangeName, String exchangeType, String routingKey, Queue queue, Queue deadQueue, boolean durable, boolean autoDelete, boolean isDelay, String brokerName, String prefix) {
+    private void bindingExchangeAndDeadQueue(String exchangeName, ExchangeType exchangeType, String routingKey, Queue queue, Queue deadQueue, boolean durable, boolean autoDelete, boolean isDelay, String brokerName, String prefix) {
         if (null == deadQueue) {
             return;
         }
 
         // 声明死信队列绑定关系
-        if (("fanout".equals(exchangeType) && !autoDelete) || "direct".equals(exchangeType)) {
+        if (isDeadLetterQueueEnable(exchangeType, autoDelete)) {
             DirectExchange exchange = new DirectExchange(prefix + exchangeName, durable, autoDelete);
             this.getRabbitAdmin(brokerName).declareExchange(exchange);
             Binding binding = BindingBuilder.bind(deadQueue).to(exchange).with(prefix + routingKey);
@@ -333,14 +349,29 @@ public class RabbitConnectionManager implements PriorityOrdered {
             Queue deadTtlQueue = new Queue(DEAD_QUEUE_PREFIX + prefix + queue.getName(), durable, false, autoDelete);
             getRabbitAdmin(brokerName).declareQueue(deadTtlQueue); // 声明queue
 
-            Binding deadttlBinding = BindingBuilder.bind(deadTtlQueue).to(deadTtlExchange).with(DEAD_QUEUE_PREFIX + prefix + routingKey);
-            getRabbitAdmin(brokerName).declareBinding(deadttlBinding);
+            Binding deadTtlBinding = BindingBuilder.bind(deadTtlQueue).to(deadTtlExchange).with(DEAD_QUEUE_PREFIX + prefix + routingKey);
+            getRabbitAdmin(brokerName).declareBinding(deadTtlBinding);
         }
+    }
+
+    /**
+     * 使用死信队列的要求：非广播消息或广播消息，但队列不自动删除
+     *
+     * @param exchangeType
+     * @param autoDelete
+     * @return
+     */
+    private boolean isDeadLetterQueueEnable(ExchangeType exchangeType, boolean autoDelete) {
+        return ExchangeType.Direct.equals(exchangeType) || (ExchangeType.Fanout.equals(exchangeType) && !autoDelete);
     }
 
     // 其它应用优先加载
     @Override
     public int getOrder() {
         return 5000;
+    }
+
+    private enum ExchangeType {
+        Direct, Fanout, Topic
     }
 }
