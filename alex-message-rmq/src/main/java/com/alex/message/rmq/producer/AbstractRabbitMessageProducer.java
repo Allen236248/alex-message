@@ -23,7 +23,7 @@ public abstract class AbstractRabbitMessageProducer implements RabbitMessageProd
         codec = new FastJsonCodec();
     }
 
-    protected MessageInfo createMessage(String queueName, Object message) {
+    protected MessageInfo createMessage(String destName, Object message) {
         MessageInfo msg;
         if (message == null) {
             throw new MessageException("message must not null!");
@@ -33,7 +33,7 @@ public abstract class AbstractRabbitMessageProducer implements RabbitMessageProd
         } else {
             msg = MessageInfoBuilder.build(codec, message);
         }
-        msg.setQueueName(queueName);
+        msg.setDestName(destName);
         setBrokerName(msg);
         return msg;
     }

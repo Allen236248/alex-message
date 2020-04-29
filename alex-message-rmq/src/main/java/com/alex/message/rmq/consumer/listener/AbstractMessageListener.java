@@ -25,9 +25,9 @@ public abstract class AbstractMessageListener<T> {
     public void handleMessage(MessageInfo messageInfo) throws MessageException {
         Long begin = System.currentTimeMillis();
         T msg = decode(messageInfo);
-        LOGGER.info("The queue {} start to process message {} with header {}", messageInfo.getQueueName(), msg, messageInfo.getHeaders());
+        LOGGER.info("The destination {} start to process message {} with header {}", messageInfo.getDestName(), msg, messageInfo.getHeaders());
         doHandle(msg);
-        LOGGER.info("The queue {} process message finished, elapsed time is {}", messageInfo.getQueueName(), System.currentTimeMillis() - begin);
+        LOGGER.info("The destination {} process message finished, elapsed time is {}", messageInfo.getDestName(), System.currentTimeMillis() - begin);
     }
 
     public abstract void doHandle(T msg) throws MessageException;

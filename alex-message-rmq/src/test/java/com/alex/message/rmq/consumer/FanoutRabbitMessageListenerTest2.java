@@ -6,7 +6,7 @@ import com.alex.message.rmq.consumer.listener.AbstractMessageListener;
 import com.alex.message.rmq.consumer.listener.RabbitListenerAttribute;
 import com.alibaba.fastjson.JSON;
 
-//@RabbitListenerAttribute(destName = "fanout_rabbit_test", isPublish = true, consumerId="FanoutRabbitMessageListenerTest")
+@RabbitListenerAttribute(destName = "fanout_rabbit_test", isPublish = true, consumerId="FanoutRabbitMessageListenerTest", concurrentConsumers = 1)
 public class FanoutRabbitMessageListenerTest2 extends AbstractMessageListener<Book> {
 
     public FanoutRabbitMessageListenerTest2() {

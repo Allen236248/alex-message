@@ -12,7 +12,7 @@ public class MessageInfo {
     public final static String MESSAGE_CONTENT_LENGTH = "message_content_length";
 
     // 消息队列名称
-    public final static String MESSAGE_QUEUE_NAME = "queue_name";
+    public final static String MESSAGE_DEST_NAME = "dest_name";
 
     private Map<String, Object> headers = new HashMap<String, Object>();
 
@@ -49,12 +49,12 @@ public class MessageInfo {
         this.brokerName = brokerName;
     }
 
-    public void setQueueName(String queueName) {
-        this.headers.put(MESSAGE_QUEUE_NAME, queueName);
+    public void setDestName(String destName) {
+        this.headers.put(MESSAGE_DEST_NAME, destName);
     }
 
-    public String getQueueName() {
-        return (String) this.headers.get(MESSAGE_QUEUE_NAME);
+    public String getDestName() {
+        return (String) this.headers.get(MESSAGE_DEST_NAME);
     }
 
     public void setContentType(String contentType) {
