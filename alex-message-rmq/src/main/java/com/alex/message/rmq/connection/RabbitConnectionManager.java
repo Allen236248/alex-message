@@ -139,18 +139,17 @@ public class RabbitConnectionManager implements PriorityOrdered {
 
     /**
      * 获取Fanout类型（广播消息）的RabbitTemplate
-     *
-     * @param topicName
+     * Fanout广播消息，发送方不用关心Queue，只需发送到指定的Exchange。
+     * @param exchangeName
      * @param brokerName
-     * @param durable    是否持久化
      * @return
      */
-    public RabbitTemplate getRabbitTemplateForFanout(String topicName, String brokerName, boolean durable) {
-        declareBindingForFanout(topicName, null, durable, brokerName);
+    public RabbitTemplate getRabbitTemplateForFanout(String exchangeName, String brokerName) {
+        declareBindingForFanout(exchangeName, null, true, brokerName);
 
         RabbitTemplate rabbitTemplate = this.getRabbitAdmin(brokerName).getRabbitTemplate();
         //TODO
-        rabbitTemplate.setExchange(topicName);
+        rabbitTemplate.setExchange(exchangeName);
         return rabbitTemplate;
     }
 
@@ -181,9 +180,6 @@ public class RabbitConnectionManager implements PriorityOrdered {
      */
     private synchronized void declareBinding(String exchangeName, ExchangeType exchangeType, String queueName, String routingKey, boolean durable,
                                              boolean autoDelete, boolean isDelay, String brokerName) {
-        if (StringUtils.isBlank(queueName))
-            throw new MessageException("Queue name can not be empty");
-
         String bindRelation = brokerName + "-" + exchangeName + "-" + queueName;
         if (bindings.contains(bindRelation))
             return;
@@ -203,7 +199,7 @@ public class RabbitConnectionManager implements PriorityOrdered {
         String deadQueueKey = brokerName + "-" + prefix + queueName;
         Queue queue = queues.get(queueKey);
         Queue deadQueue = queues.get(deadQueueKey);
-        if (queue == null) {
+        if (queue == null && StringUtils.isNotBlank(queueName)) {//Fanout广播类型，发送广播消息，不需要指定queueName
             queue = declareQueue(exchangeName, queueName, routingKey, durable, autoDelete, isDelay, brokerName);
             queues.put(queueKey, queue);
 

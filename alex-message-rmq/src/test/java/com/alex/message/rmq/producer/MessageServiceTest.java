@@ -37,6 +37,15 @@ public class MessageServiceTest extends Launcher {
         threadJoin();
     }
 
+    @Test
+    public void testFanoutRabbitMessageListener() {
+        Book book = createBook("listener");
+        for(int i = 0; i < 5; i++)
+            rabbitMessageProducer.publish("fanout_rabbit_test", book);
+
+        threadJoin();
+    }
+
     private static Book createBook(String mark) {
         Book book = new Book();
         book.setName("追风筝的人" + mark);

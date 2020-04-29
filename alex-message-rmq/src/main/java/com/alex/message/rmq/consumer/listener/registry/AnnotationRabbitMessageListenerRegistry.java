@@ -46,7 +46,7 @@ public class AnnotationRabbitMessageListenerRegistry extends AbstractRabbitMessa
             }
 
             // 如果为持久化广播时，消费者编号不能为空
-            if (attribute.isPersistentPublish() && StringUtils.isBlank(attribute.consumerId())) {
+            if (attribute.isPublish() && StringUtils.isBlank(attribute.consumerId())) {
                 LOGGER.error("consumeId can not be empty on persistentPublish is true, the bean is {}", bean);
                 throw new MessageException("consumeId can not be empty");
             }

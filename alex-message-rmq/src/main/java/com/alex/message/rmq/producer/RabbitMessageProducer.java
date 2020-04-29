@@ -24,20 +24,4 @@ public interface RabbitMessageProducer extends MessageProducer {
      */
     void send(String queueName, Object message, long delayTime);
 
-    /**
-     * 向队列发送消息 <br/>
-     * 
-     * broker接收到广播消息后会自动为订阅者创建一个持久化的队列用来存放广播消息. 订阅者不在线，系统会缓存消息，直到订阅者正常消费<br/ >
-     * 每一个订阅者可最多一次成功消费该广播消息
-     * 
-     * <p>
-     * 命名示例:persistent.publish.[domain].[module].queuename
-     * </p>
-     * 
-     * @param topicName 订阅广播主题名称
-     * @param message 消息内容
-     * @param isPersistent 消息是否持久化，持久化消息需要发送至持久化队列
-     */
-    void publish(String topicName, Object message, boolean isPersistent);
-
 }

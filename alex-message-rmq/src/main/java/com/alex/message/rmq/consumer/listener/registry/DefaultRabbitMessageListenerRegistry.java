@@ -42,14 +42,10 @@ public class DefaultRabbitMessageListenerRegistry extends AbstractRabbitMessageL
         RabbitMessageListenerContainerConfig rabbitConfig = new RabbitMessageListenerContainerConfig();
         rabbitConfig.setDestName(config.getDestName());
         rabbitConfig.setConcurrentConsumers(config.getMaxConcurrentConsumers());
-        // 如果为虚拟主题
-        if (config.getVirtualTopic()) {
-            rabbitConfig.setPersistentPublish(true);
-            rabbitConfig.setConsumerId(config.getConsumerId());
-        }
-        // 消费者订阅模式
-        if (config.getPubSubDomain()) {
+        // 如果为虚拟主题 或 消费者订阅模式
+        if (config.getVirtualTopic() || config.getPubSubDomain()) {
             rabbitConfig.setPublish(true);
+            rabbitConfig.setConsumerId(config.getConsumerId());
         }
         rabbitConfig.setMessageRetryCount(2);
         return rabbitConfig;

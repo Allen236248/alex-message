@@ -35,7 +35,7 @@ public class DefaultRabbitMessageProducer extends AbstractRabbitMessageProducer 
         } else {
             send(queueName, msg, msg.getBrokerName(), true, delayTime);
         }
-        LOGGER.info("发送点对点延时消息：queueName:{}，源消息:{}，消息头:{}", queueName, message, msg);
+        LOGGER.info("发送点对点消息：queueName:{}，源消息:{}，消息头:{}", queueName, message, msg);
     }
 
     private void send(String queueName, Object message, String broker) {
@@ -56,19 +56,14 @@ public class DefaultRabbitMessageProducer extends AbstractRabbitMessageProducer 
     }
 
     @Override
-    public void publish(String topicName, Object message) {
-        publish(topicName, message, false);
+    public void publish(String exchangeName, Object message) {
+        MessageInfo msg = createMessage(exchangeName, message);
+        publish(exchangeName, msg, msg.getBrokerName());
+        LOGGER.info("发送广播消息：exchangeName:{}，源消息:{}，消息头:{}", exchangeName, message, msg);
     }
 
-    @Override
-    public void publish(String topicName, Object message, boolean durable) {
-        MessageInfo msg = createMessage(topicName, message);
-        publish(topicName, msg, msg.getBrokerName(), durable);
-        LOGGER.info("发送广播消息：queueName:{}，源消息:{}，消息头:{}", topicName, message, msg);
-    }
-
-    private void publish(String topicName, Object message, String broker, boolean durable) {
-        RabbitTemplate amqpTemplate = rabbitConnectionManager.getRabbitTemplateForFanout(topicName, broker, durable);
+    private void publish(String exchangeName, Object message, String broker) {
+        RabbitTemplate amqpTemplate = rabbitConnectionManager.getRabbitTemplateForFanout(exchangeName, broker);
         amqpTemplate.convertAndSend(message);
     }
 

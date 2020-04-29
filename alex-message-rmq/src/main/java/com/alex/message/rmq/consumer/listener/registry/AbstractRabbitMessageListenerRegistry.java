@@ -53,7 +53,7 @@ public abstract class AbstractRabbitMessageListenerRegistry extends AbstractMess
     protected void register(Object messageListener, RabbitMessageListenerContainerConfig config) {
         // 初始化默认的broker监听器
         String brokerName = Broker.DEFAULT_BROKER_NAME;
-        registerListenerContainer(config, messageListener, brokerName, null);
+        registerListenerContainer(config, messageListener, brokerName, config.getDestName());
 
         // 额外的broker监听器
         List<Broker> brokers = config.getBrokers();
@@ -80,6 +80,7 @@ public abstract class AbstractRabbitMessageListenerRegistry extends AbstractMess
      */
     public SimpleMessageListenerContainer registerListenerContainer(RabbitMessageListenerContainerConfig config, Object messageListener, String brokerName, String destName) {
         String queueName = declareBinding(config, brokerName, destName);
+
         int concurrentConsumers = config.concurrentConsumers;
         int messageRetryCount = config.getMessageRetryCount();
 
@@ -107,40 +108,21 @@ public abstract class AbstractRabbitMessageListenerRegistry extends AbstractMess
     /**
      * 消费者启动时，声明交换器、队列、路由键及其绑定关系
      */
-    public String declareBinding(RabbitMessageListenerContainerConfig config, String brokerName, String destName) {
-        if (StringUtils.isBlank(destName)) {
-            destName = config.getDestName();
-        }
-        String exchangeName = destName;
-        String queueName;
+    private String declareBinding(RabbitMessageListenerContainerConfig config, String brokerName, String destName) {
+        String queueName = "";
         // 持久化订阅模式
-        if (config.isPersistentPublish()) {
-            queueName = "persistent.publish.";
-            String consumerId = config.getConsumerId();
-            if (StringUtils.isNotBlank(consumerId)) {
-                queueName += consumerId + ".";
-            }
-            queueName += exchangeName;
-            rabbitConnectionManager.declareBindingForFanout(exchangeName, queueName, true, brokerName);
-        } else if (config.isPublish()) {
-            queueName = "publish." + UUID.randomUUID() + "." + exchangeName;
-            rabbitConnectionManager.declareBindingForFanout(exchangeName, queueName, false, brokerName);
-            String otherExchangeName = config.getOtherExchangeName();
-            // 广播类型，如果存在额外的otherExchange绑定关系
-            if (StringUtils.isNotBlank(otherExchangeName)) {
-                rabbitConnectionManager.declareBindingForFanout(otherExchangeName, queueName, false, brokerName);
-            }
+        if (config.isPublish()) {
+            queueName = "publish." + config.getConsumerId()  + "." + destName;
+            rabbitConnectionManager.declareBindingForFanout(destName, queueName, true, brokerName);
         } else {
+            boolean isDelay = config.isDelay();
             queueName = destName;
-
-            // 是否延时队列
-            if (config.isDeadLetter()) {
-                // 替换为延时队列名称，用于向rabbitmq进行注册
-                queueName = queueName.replace(Broker.TTL, "");
-                rabbitConnectionManager.declareBindingForDirect(queueName, true, true, brokerName);
+            rabbitConnectionManager.declareBindingForDirect(queueName, true, isDelay, brokerName);
+            // 关于延时的的理解是：如果是延时队列，队列名为q2，那么这时实际会生成一个 ttl.q2 的交换器。
+            // 如果q2里的消息超时，消息将进入ttl.q2的交换器，并被与此交换器绑定的队列消费。ttl.q2的消息消费失败了，将进入dlq.ttl.q2的死信交换器
+            if (isDelay) {
+                // 如果是延时队列，实际是ttl.<queueName>队列获取消息的
                 queueName = Broker.TTL + queueName;
-            } else {
-                rabbitConnectionManager.declareBindingForDirect(queueName, true, false, brokerName);
             }
         }
         return queueName;

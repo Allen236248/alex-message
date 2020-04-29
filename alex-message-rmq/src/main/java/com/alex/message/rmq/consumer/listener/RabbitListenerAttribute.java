@@ -4,7 +4,6 @@ import org.springframework.stereotype.Component;
 
 import java.lang.annotation.*;
 
-
 /**
  * 消息队列中间件监听注解<br />
  * 一、isPublish与isPersistentPublish具有排它特性，当两者都设置为true时，系统默认为持久化广播模式<br />
@@ -29,20 +28,14 @@ public @interface RabbitListenerAttribute {
     /** 是否为广播模式，消费端只有在启动才能接收消息,未在线期间广播消息会丢失. */
     boolean isPublish() default false;
 
-    /** 持久化广播模式，消费者第一次链接程序 会自动注册，后期不管是否在线，均可以接受广播消息，与isPublish具有排它特性 */
-    boolean isPersistentPublish() default false;
-
     /** 消费者编号 当为广播、持久化广播模式时，且需输入此字段 */
     String consumerId() default "";
 
     /** 多broker消息监听 */
     MultiBrokerListenerAttribute[] multiBrokerListenerAttribute() default {};
 
-    /** 绑定其它的exchanges */
-    String otherExchangeName() default "";
-
     /** 延时监听 */
-    boolean isDeadLetter() default false;
+    boolean isDelay() default false;
 
     /**
      * 可使用一个监听类实现多broker消息监听
