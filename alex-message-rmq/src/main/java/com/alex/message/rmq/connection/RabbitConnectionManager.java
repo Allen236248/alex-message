@@ -203,7 +203,7 @@ public class RabbitConnectionManager implements PriorityOrdered {
             queue = declareQueue(exchangeName, queueName, routingKey, durable, autoDelete, isDelay, brokerName);
             queues.put(queueKey, queue);
 
-            // 使用死信队列的要求：非广播消息或广播消息，但队列不自动删除
+            // 使用死信队列的要求：队列不再使用时不自动删除（没有连接，并且没有未处理的消息)
             if (isDeadLetterQueueEnable(exchangeType, autoDelete)) {
                 //如果延时，实际生成的为延时队列
                 deadQueue = declareDeadQueue(exchangeName, queueName, routingKey, durable, autoDelete, isDelay, brokerName);
@@ -327,7 +327,6 @@ public class RabbitConnectionManager implements PriorityOrdered {
             return;
         }
 
-        // 声明死信队列绑定关系
         if (isDeadLetterQueueEnable(exchangeType, autoDelete)) {
             DirectExchange exchange = new DirectExchange(prefix + exchangeName, durable, autoDelete);
             this.getRabbitAdmin(brokerName).declareExchange(exchange);
@@ -351,7 +350,7 @@ public class RabbitConnectionManager implements PriorityOrdered {
     }
 
     /**
-     * 使用死信队列的要求：非广播消息或广播消息，但队列不自动删除
+     * 使用死信队列的要求：队列不再使用时不自动删除（没有连接，并且没有未处理的消息)
      *
      * @param exchangeType
      * @param autoDelete
