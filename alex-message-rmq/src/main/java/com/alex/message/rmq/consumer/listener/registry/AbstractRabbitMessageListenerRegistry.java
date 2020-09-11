@@ -90,7 +90,8 @@ public abstract class AbstractRabbitMessageListenerRegistry extends AbstractMess
         properties.put("messageListener", getMessageListenerAdapter(messageListener));
         properties.put("errorHandler", new RabbitMessageListenerErrorHandler());
         properties.put("queueNames", queueName);
-        // 对每个listener在初始化的时候设置的并发消费者的个数。每个监听器，使用多个线程，各自开创建Channel进行Exchange/Queue/Bind的声明以及创建Consumer。
+        // 对每个listener在初始化的时候设置的并发消费者的个数。SimpleMessageListenerContainer在启动是会创建多个BlockingQueueConsumer用于包装Channel,
+        // 同时每个BlockingQueueConsumer放入一个线程，使用多个线程分别进行Exchange/Queue/Bind的声明，以及消费消息。
         // 多个Channel轮询处理消息
         properties.put("concurrentConsumers", concurrentConsumers);
         properties.put("adviceChain", new Advice[]{retryInterceptor(messageRetryCount)});
