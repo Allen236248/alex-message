@@ -35,7 +35,7 @@ public class DefaultActiveMQMessageProducer extends AbstractActiveMQMessageProdu
             @Override
             public Message createMessage(Session session) throws JMSException {
                 String text = JSON.toJSONString(message);
-                LOGGER.info("发布JMS消息到{}:" + text, physicalName);
+                LOGGER.info("发布JMS消息{}到{}:", text, physicalName);
                 return session.createTextMessage(text);
             }
         });
